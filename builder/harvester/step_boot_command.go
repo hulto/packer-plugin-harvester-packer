@@ -298,9 +298,9 @@ func sendKeyUp(conn *websocket.Conn, keySym uint32) error {
 //
 // RFB KeyEvent format (8 bytes):
 //
-//	byte 4  : message-type (4)
-//	byte 5  : down-flag (1=down, 0=up)
-//	bytes 6-7: padding
+//	byte 0  : message-type (4)
+//	byte 1  : down-flag (1=down, 0=up)
+//	bytes 2-3: padding
 //	bytes 4-7: key-sym (big-endian uint32)
 func sendKeyEvent(conn *websocket.Conn, downFlag uint8, keySym uint32) error {
 	msg := make([]byte, 8)

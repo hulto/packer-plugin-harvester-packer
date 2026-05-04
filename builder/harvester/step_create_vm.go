@@ -5,9 +5,10 @@ package harvester
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -67,12 +68,10 @@ func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multiste
 	return multistep.ActionContinue
 }
 
-// Cleanup removes the VM and associated DataVolumes if the build fails or is cancelled.
+// Cleanup removes the VM and associated DataVolumes.
+// This always runs at build end regardless of success, failure or cancellation.
 func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	if s.vmName == "" {
-		return
-	}
-	if cancelled, ok := state.GetOk("cancelled"); ok && cancelled.(bool) {
 		return
 	}
 
@@ -289,13 +288,13 @@ func buildVolumeClaimTemplate(name, size, storageClass, imageID, imageNamespace 
 	}
 }
 
-// randomHex returns a random lowercase hex string of the given length.
+// randomHex returns a cryptographically random lowercase hex string of n bytes
+// (resulting in 2n hex characters).
 func randomHex(n int) string {
-	const hexChars = "0123456789abcdef"
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	b := make([]byte, n)
-	for i := range b {
-		b[i] = hexChars[r.Intn(len(hexChars))]
+	if _, err := rand.Read(b); err != nil {
+		// Fallback: use a timestamp-derived value if crypto/rand fails.
+		return fmt.Sprintf("%x", time.Now().UnixNano())[:n*2]
 	}
-	return strings.ToLower(string(b))
+	return strings.ToLower(hex.EncodeToString(b))
 }

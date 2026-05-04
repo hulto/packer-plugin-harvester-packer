@@ -1,7 +1,7 @@
 # Example Packer template using the Harvester ISO builder.
 # Run: PACKER_ACC=1 go test -v ./builder/harvester/ -timeout=120m
 
-source "scaffolding-iso" "basic-example" {
+source "harvester-iso" "basic-example" {
   harvester_url  = "https://192.168.1.100:6443"
   namespace      = "default"
   token          = "test-token"
@@ -33,6 +33,6 @@ source "scaffolding-iso" "basic-example" {
 
 build {
   sources = [
-    "source.scaffolding-iso.basic-example"
+    "source.harvester-iso.basic-example"
   ]
 }

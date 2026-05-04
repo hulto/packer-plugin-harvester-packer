@@ -22,7 +22,7 @@ variable "namespace" {
   default = "default"
 }
 
-source "scaffolding-clone" "ubuntu" {
+source "harvester-clone" "ubuntu" {
   # Harvester connection
   harvester_url   = var.harvester_url
   namespace       = var.namespace
@@ -50,7 +50,7 @@ source "scaffolding-clone" "ubuntu" {
 }
 
 build {
-  sources = ["source.scaffolding-clone.ubuntu"]
+  sources = ["source.harvester-clone.ubuntu"]
 
   provisioner "shell" {
     inline = [

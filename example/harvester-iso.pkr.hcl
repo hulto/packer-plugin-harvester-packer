@@ -22,7 +22,7 @@ variable "namespace" {
   default = "default"
 }
 
-source "scaffolding-iso" "ubuntu" {
+source "harvester-iso" "ubuntu" {
   # Harvester connection
   harvester_url   = var.harvester_url
   namespace       = var.namespace
@@ -64,7 +64,7 @@ source "scaffolding-iso" "ubuntu" {
 }
 
 build {
-  sources = ["source.scaffolding-iso.ubuntu"]
+  sources = ["source.harvester-iso.ubuntu"]
 
   provisioner "shell" {
     inline = [

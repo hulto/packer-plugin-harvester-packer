@@ -1,7 +1,7 @@
 # Example Packer template using the Harvester clone builder.
 # Run: PACKER_ACC=1 go test -v ./builder/harvester/ -timeout=120m
 
-source "scaffolding-clone" "basic-example" {
+source "harvester-clone" "basic-example" {
   harvester_url  = "https://192.168.1.100:6443"
   namespace      = "default"
   token          = "test-token"
@@ -26,7 +26,7 @@ source "scaffolding-clone" "basic-example" {
 
 build {
   sources = [
-    "source.scaffolding-clone.basic-example"
+    "source.harvester-clone.basic-example"
   ]
 
   provisioner "shell-local" {
