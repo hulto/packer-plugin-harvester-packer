@@ -54,13 +54,15 @@ source "harvester-iso" "ubuntu24_golden" {
 
   # Ubuntu 24 Server autoinstall via the auxiliary NoCloud ISO on /dev/sr1.
   # /dev/sr0 is the Ubuntu installer ISO; /dev/sr1 is our cidata ISO (cd_files).
-  # Subiquity reads user-data/meta-data from the path given after ds=nocloud;s=
+  # Use ds=nocloud without a path: subiquity scans all block devices for a
+  # volume labelled "cidata" and reads user-data/meta-data from it directly,
+  # so /dev/sr1 does not need to be pre-mounted.
   boot_wait = "5s"
   boot_command = [
     "<wait5>",
     "e",
     "<down><down><down><end>",
-    " autoinstall ds=nocloud\\;s=/cdrom1/",
+    " autoinstall ds=nocloud",
     "<F10>",
   ]
 
