@@ -8,6 +8,7 @@ package client
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,8 +43,13 @@ func NewClient(harvesterURL, namespace, token string, skipTLSVerify bool) *Harve
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: skipTLSVerify, //nolint:gosec // controlled by user config
 	}
+	return newClientWithTLS(harvesterURL, namespace, token, tlsConfig)
+}
+
+// newClientWithTLS creates a HarvesterClient using the provided TLS configuration.
+func newClientWithTLS(harvesterURL, namespace, token string, tlsCfg *tls.Config) *HarvesterClient {
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig: tlsCfg,
 	}
 	return &HarvesterClient{
 		baseURL:   harvesterURL,
@@ -59,6 +65,23 @@ func NewClient(harvesterURL, namespace, token string, skipTLSVerify bool) *Harve
 // NewClientFromKubeconfig creates a HarvesterClient by reading a kubeconfig file.
 // If kubeconfigPath is empty it falls back to $KUBECONFIG or ~/.kube/config.
 func NewClientFromKubeconfig(kubeconfigPath, namespace string, skipTLSVerify bool) (*HarvesterClient, error) {
+	return NewClientFromKubeconfigWithOverrides(kubeconfigPath, namespace, "", "", skipTLSVerify)
+}
+
+// NewClientFromKubeconfigWithOverrides creates a HarvesterClient from a kubeconfig file,
+// optionally overriding the server URL and bearer token from the file.
+//
+//   - If overrideURL is non-empty it replaces the server URL from the kubeconfig.
+//   - If overrideToken is non-empty it replaces the token (or client-certificate
+//     credentials) from the kubeconfig. An explicit token always takes priority over
+//     mTLS client-certificate credentials embedded in the kubeconfig.
+//   - If the kubeconfig user has no bearer token and provides a client certificate +
+//     key, mTLS authentication is used automatically.
+//   - CA certificate data from the kubeconfig is always applied to the TLS config
+//     (unless skipTLSVerify is true).
+//
+// If kubeconfigPath is empty the function falls back to $KUBECONFIG or ~/.kube/config.
+func NewClientFromKubeconfigWithOverrides(kubeconfigPath, namespace, overrideURL, overrideToken string, skipTLSVerify bool) (*HarvesterClient, error) {
 	if kubeconfigPath == "" {
 		if env := os.Getenv("KUBECONFIG"); env != "" {
 			kubeconfigPath = env
@@ -76,18 +99,59 @@ func NewClientFromKubeconfig(kubeconfigPath, namespace string, skipTLSVerify boo
 		return nil, fmt.Errorf("cannot read kubeconfig %s: %w", kubeconfigPath, err)
 	}
 
-	server, token, skipTLS, err := parseKubeconfig(data)
+	kd, err := parseKubeconfig(data)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse kubeconfig: %w", err)
 	}
 
-	if skipTLSVerify {
-		skipTLS = true
+	// Apply explicit overrides.
+	server := kd.Server
+	if overrideURL != "" {
+		server = overrideURL
 	}
-	if namespace == "" {
-		namespace = "default"
+
+	token := kd.Token
+	if overrideToken != "" {
+		token = overrideToken
 	}
-	return NewClient(server, namespace, token, skipTLS), nil
+
+	// Resolve namespace: explicit arg > kubeconfig context > "default".
+	ns := namespace
+	if ns == "" {
+		ns = kd.Namespace
+	}
+	if ns == "" {
+		ns = "default"
+	}
+
+	// Build TLS config.
+	tlsCfg := &tls.Config{
+		InsecureSkipVerify: skipTLSVerify || kd.SkipTLSVerify, //nolint:gosec // controlled by user config
+	}
+
+	// Add CA bundle from kubeconfig (ignored when InsecureSkipVerify is set).
+	if len(kd.CAData) > 0 && !tlsCfg.InsecureSkipVerify {
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(kd.CAData) {
+			return nil, fmt.Errorf("kubeconfig certificate-authority-data contains no valid PEM certificates")
+		}
+		tlsCfg.RootCAs = pool
+	}
+
+	// Use mTLS when no bearer token is available and the kubeconfig provides a
+	// client certificate + key pair. An explicit overrideToken takes priority.
+	// Note: passing an empty string as overrideToken is treated the same as
+	// "no override", so mTLS credentials from the kubeconfig are used when the
+	// kubeconfig itself also has no bearer token.
+	if token == "" && len(kd.CertData) > 0 && len(kd.KeyData) > 0 {
+		cert, certErr := tls.X509KeyPair(kd.CertData, kd.KeyData)
+		if certErr != nil {
+			return nil, fmt.Errorf("parse client certificate from kubeconfig: %w", certErr)
+		}
+		tlsCfg.Certificates = []tls.Certificate{cert}
+	}
+
+	return newClientWithTLS(server, ns, token, tlsCfg), nil
 }
 
 // request performs an authenticated HTTP request and returns the raw body bytes.

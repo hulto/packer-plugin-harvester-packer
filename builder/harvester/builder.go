@@ -142,9 +142,13 @@ func (b *CloneBuilder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) 
 }
 
 // buildClient creates the HarvesterClient from the plugin configuration.
+// When kubeconfig is set it is always used as the primary credential source;
+// explicit harvester_url and token values override the corresponding kubeconfig
+// fields when provided.
 func buildClient(cfg *Config) (*hvclient.HarvesterClient, error) {
-	if cfg.Kubeconfig != "" && cfg.HarvesterURL == "" {
-		return hvclient.NewClientFromKubeconfig(cfg.Kubeconfig, cfg.Namespace, cfg.SkipTLSVerify)
+	if cfg.Kubeconfig != "" {
+		return hvclient.NewClientFromKubeconfigWithOverrides(
+			cfg.Kubeconfig, cfg.Namespace, cfg.HarvesterURL, cfg.Token, cfg.SkipTLSVerify)
 	}
 	if cfg.HarvesterURL == "" {
 		return nil, fmt.Errorf("'harvester_url' must be set when 'kubeconfig' is not provided")

@@ -40,8 +40,13 @@ the root disk as a `VirtualMachineImage`.
 
 **Optional**
 
-- `kubeconfig` (string) - Path to a kubeconfig file. When set, `harvester_url`
-  and `token` can be omitted; they will be derived from the file.
+- `kubeconfig` (string) - Path to a kubeconfig file. When set, the server URL,
+  CA certificate, and credentials are read from the file. An explicit `token`
+  or `harvester_url` in the builder config takes priority over the values in
+  the kubeconfig. If the kubeconfig user has no bearer token and provides a
+  client certificate + key pair, mTLS authentication is used automatically.
+  When `kubeconfig` is empty the plugin falls back to the `$KUBECONFIG`
+  environment variable, then `~/.kube/config`.
 
 - `namespace` (string) - Kubernetes namespace for VM resources. Defaults to
   `default`.
