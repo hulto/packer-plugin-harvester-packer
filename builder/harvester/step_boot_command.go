@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -61,12 +62,37 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 	}
 
 	// Interpolate boot commands (supports {{.HTTPIP}}, {{.HTTPPort}} etc.).
-	httpIP, _ := state.GetOk("http_ip")
-	httpPort, _ := state.GetOk("http_port")
+	httpIP := stateString(state, "http_ip")
+	httpPort := stateString(state, "http_port")
+	if usesHTTPTemplateVars(s.Config.BootCommand) {
+		if httpPort == "" || httpPort == "0" {
+			ui.Error("http_directory is configured but HTTP server is not running (http_port missing)")
+			state.Put("error", fmt.Errorf("boot_command requires HTTP server variables, but http_port is missing"))
+			return multistep.ActionHalt
+		}
+		if httpIP == "" {
+			vmIP := stateString(state, "vm_ip")
+			if vmIP == "" {
+				ui.Error("boot_command references HTTPIP but vm_ip is unknown")
+				state.Put("error", fmt.Errorf("boot_command requires HTTPIP, but vm_ip is not available"))
+				return multistep.ActionHalt
+			}
+			resolvedIP, err := localIPForTarget(vmIP)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Failed to resolve HTTPIP for VM reachability: %s", err))
+				state.Put("error", fmt.Errorf("resolve HTTPIP from vm_ip %q: %w", vmIP, err))
+				return multistep.ActionHalt
+			}
+			httpIP = resolvedIP
+			state.Put("http_ip", resolvedIP)
+			ui.Say(fmt.Sprintf("Using HTTP server address %s:%s for boot command templates", httpIP, httpPort))
+		}
+	}
+
 	renderCtx := &interpolate.Context{
 		Data: &bootCommandTemplateData{
-			HTTPIP:   fmt.Sprintf("%v", httpIP),
-			HTTPPort: fmt.Sprintf("%v", httpPort),
+			HTTPIP:   httpIP,
+			HTTPPort: httpPort,
 		},
 	}
 
@@ -417,4 +443,41 @@ var specialKeys = map[string]uint32{
 type bootCommandTemplateData struct {
 	HTTPIP   string
 	HTTPPort string
+}
+
+func usesHTTPTemplateVars(commands []string) bool {
+	for _, cmd := range commands {
+		if strings.Contains(cmd, "{{.HTTPIP}}") || strings.Contains(cmd, "{{ .HTTPIP }}") ||
+			strings.Contains(cmd, "{{.HTTPPort}}") || strings.Contains(cmd, "{{ .HTTPPort }}") {
+			return true
+		}
+	}
+	return false
+}
+
+func stateString(state multistep.StateBag, key string) string {
+	v, ok := state.GetOk(key)
+	if !ok || v == nil {
+		return ""
+	}
+	s := fmt.Sprintf("%v", v)
+	if s == "<nil>" {
+		return ""
+	}
+	return s
+}
+
+// localIPForTarget finds the local source IP that would be used to reach the target.
+func localIPForTarget(targetIP string) (string, error) {
+	conn, err := net.Dial("udp", net.JoinHostPort(targetIP, "80"))
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	addr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || addr.IP == nil {
+		return "", fmt.Errorf("unexpected local address %T", conn.LocalAddr())
+	}
+	return addr.IP.String(), nil
 }

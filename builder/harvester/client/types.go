@@ -44,9 +44,10 @@ type CDRom struct {
 
 // DiskTarget describes a disk device.
 type DiskTarget struct {
-	Name  string `json:"name"`
-	Disk  *Disk  `json:"disk,omitempty"`
-	CDRom *CDRom `json:"cdrom,omitempty"`
+	Name      string `json:"name"`
+	BootOrder uint   `json:"bootOrder,omitempty"`
+	Disk      *Disk  `json:"disk,omitempty"`
+	CDRom     *CDRom `json:"cdrom,omitempty"`
 }
 
 // Interface device spec.
@@ -262,9 +263,10 @@ type VirtualMachineImageSpec struct {
 
 // VirtualMachineImageStatus describes image status.
 type VirtualMachineImageStatus struct {
-	Phase   string `json:"phase,omitempty"`
-	Message string `json:"message,omitempty"`
-	Size    int64  `json:"size,omitempty"`
+	Phase            string `json:"phase,omitempty"`
+	Message          string `json:"message,omitempty"`
+	Size             int64  `json:"size,omitempty"`
+	StorageClassName string `json:"storageClassName,omitempty"`
 }
 
 // VirtualMachineImage is a Harvester image CRD.

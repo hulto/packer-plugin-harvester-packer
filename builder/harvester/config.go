@@ -8,6 +8,7 @@ package harvester
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/packer-plugin-sdk/communicator"
@@ -285,4 +286,27 @@ func (pe *packer_errs) toErr() error {
 		combined += m
 	}
 	return errors.New(combined)
+}
+
+// effectiveBuilderType returns the configured builder type or infers it from
+// type-specific fields when the internal builderType is not set.
+func (c *Config) effectiveBuilderType() (BuilderType, error) {
+	switch c.builderType {
+	case BuilderTypeISO, BuilderTypeClone:
+		return c.builderType, nil
+	}
+
+	hasISO := strings.TrimSpace(c.ISOImageName) != ""
+	hasClone := strings.TrimSpace(c.SourceImageName) != ""
+
+	switch {
+	case hasISO && !hasClone:
+		return BuilderTypeISO, nil
+	case hasClone && !hasISO:
+		return BuilderTypeClone, nil
+	case hasISO && hasClone:
+		return "", errors.New("cannot infer builder type: both 'iso_image_name' and 'source_image_name' are set")
+	default:
+		return "", errors.New("cannot infer builder type: neither 'iso_image_name' nor 'source_image_name' is set")
+	}
 }

@@ -6,6 +6,8 @@ package harvester
 import (
 	"testing"
 	"time"
+
+	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
 )
 
 // TestConfigPrepare_ISO tests validation of the ISO builder configuration.
@@ -152,5 +154,148 @@ func TestConfigNamespacePropagation(t *testing.T) {
 	}
 	if cfg.OutputImageNamespace != "mynamespace" {
 		t.Errorf("expected output_image_namespace 'mynamespace', got %q", cfg.OutputImageNamespace)
+	}
+}
+
+func TestEffectiveBuilderType(t *testing.T) {
+	t.Run("uses_explicit_builder_type", func(t *testing.T) {
+		cfg := &Config{builderType: BuilderTypeISO}
+		got, err := cfg.effectiveBuilderType()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != BuilderTypeISO {
+			t.Fatalf("expected %q, got %q", BuilderTypeISO, got)
+		}
+	})
+
+	t.Run("infers_iso_from_config", func(t *testing.T) {
+		cfg := &Config{ISOImageName: "ubuntu-24.iso"}
+		got, err := cfg.effectiveBuilderType()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != BuilderTypeISO {
+			t.Fatalf("expected %q, got %q", BuilderTypeISO, got)
+		}
+	})
+
+	t.Run("infers_clone_from_config", func(t *testing.T) {
+		cfg := &Config{SourceImageName: "ubuntu-24-golden"}
+		got, err := cfg.effectiveBuilderType()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != BuilderTypeClone {
+			t.Fatalf("expected %q, got %q", BuilderTypeClone, got)
+		}
+	})
+
+	t.Run("errors_when_ambiguous", func(t *testing.T) {
+		cfg := &Config{ISOImageName: "ubuntu-24.iso", SourceImageName: "golden"}
+		if _, err := cfg.effectiveBuilderType(); err == nil {
+			t.Fatal("expected error when both iso_image_name and source_image_name are set")
+		}
+	})
+
+	t.Run("errors_when_missing", func(t *testing.T) {
+		cfg := &Config{}
+		if _, err := cfg.effectiveBuilderType(); err == nil {
+			t.Fatal("expected error when no builder type can be inferred")
+		}
+	})
+}
+
+func TestBuildVolumeClaimTemplate_UsesProvidedNamespace(t *testing.T) {
+	vct := buildVolumeClaimTemplate("cdrom", "1Gi", "harvester-longhorn", "harvester-public/image-1", "hulto")
+
+	metaRaw, ok := vct["metadata"]
+	if !ok {
+		t.Fatal("expected metadata in volume claim template")
+	}
+	meta, ok := metaRaw.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected metadata map, got %T", metaRaw)
+	}
+	if got, _ := meta["namespace"].(string); got != "hulto" {
+		t.Fatalf("expected namespace hulto, got %q", got)
+	}
+
+	specRaw, ok := vct["spec"]
+	if !ok {
+		t.Fatal("expected spec in volume claim template")
+	}
+	spec, ok := specRaw.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected spec map, got %T", specRaw)
+	}
+	modes, ok := spec["accessModes"].([]string)
+	if !ok {
+		t.Fatalf("expected accessModes []string, got %T", spec["accessModes"])
+	}
+	if len(modes) != 1 || modes[0] != "ReadWriteMany" {
+		t.Fatalf("expected accessModes [ReadWriteMany], got %v", modes)
+	}
+}
+
+func TestImageSizeToGi(t *testing.T) {
+	tests := []struct {
+		name string
+		in   int64
+		want string
+	}{
+		{name: "unknown", in: 0, want: "4Gi"},
+		{name: "one_gi", in: 1024 * 1024 * 1024, want: "1Gi"},
+		{name: "round_up", in: 3*1024*1024*1024 + 1, want: "4Gi"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := imageSizeToGi(tc.in); got != tc.want {
+				t.Fatalf("imageSizeToGi(%d) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestChooseStorageClass(t *testing.T) {
+	tests := []struct {
+		name     string
+		configSC string
+		imageSC  string
+		want     string
+	}{
+		{name: "prefer_image_when_default", configSC: hvclient.DefaultStorageClass, imageSC: "duplicated", want: "duplicated"},
+		{name: "prefer_image_when_empty", configSC: "", imageSC: "duplicated", want: "duplicated"},
+		{name: "keep_explicit_config", configSC: "fast-ssd", imageSC: "duplicated", want: "fast-ssd"},
+		{name: "keep_config_when_image_empty", configSC: "fast-ssd", imageSC: "", want: "fast-ssd"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := chooseStorageClass(tc.configSC, tc.imageSC); got != tc.want {
+				t.Fatalf("chooseStorageClass(%q, %q) = %q, want %q", tc.configSC, tc.imageSC, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestChooseISOCDROMStorageClass(t *testing.T) {
+	tests := []struct {
+		name   string
+		rootSC string
+		imgSC  string
+		want   string
+	}{
+		{name: "prefer_image_sc", rootSC: "duplicated", imgSC: "longhorn-image-57448", want: "longhorn-image-57448"},
+		{name: "fallback_to_root", rootSC: "duplicated", imgSC: "", want: "duplicated"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := chooseISOCDROMStorageClass(tc.rootSC, tc.imgSC); got != tc.want {
+				t.Fatalf("chooseISOCDROMStorageClass(%q, %q) = %q, want %q", tc.rootSC, tc.imgSC, got, tc.want)
+			}
+		})
 	}
 }

@@ -46,6 +46,11 @@ func (b *ISOBuilder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (p
 	state.Put("client", client)
 
 	steps := []multistep.Step{
+		commonsteps.HTTPServerFromHTTPConfig(&commonsteps.HTTPConfig{
+			HTTPDir:     b.config.HTTPDir,
+			HTTPPortMin: b.config.HTTPPortMin,
+			HTTPPortMax: b.config.HTTPPortMax,
+		}),
 		&StepCreateVM{Config: &b.config},
 		&StepWaitForInstance{Config: &b.config},
 		&StepBootCommand{Config: &b.config},

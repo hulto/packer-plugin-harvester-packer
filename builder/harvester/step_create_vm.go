@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -56,19 +57,12 @@ func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multiste
 
 	ui.Say(fmt.Sprintf("VM %q created (UID %s)", created.ObjectMeta.Name, created.ObjectMeta.UID))
 	state.Put("vm_name", s.vmName)
-
-	// Start the VM.
-	ui.Say("Starting VM...")
-	if err := client.StartVM(s.vmName); err != nil {
-		ui.Error(fmt.Sprintf("Failed to start VM: %s", err))
-		state.Put("error", err)
-		return multistep.ActionHalt
-	}
+	ui.Say("VM created with runStrategy=Once; waiting for it to start...")
 
 	return multistep.ActionContinue
 }
 
-// Cleanup removes the VM and associated DataVolumes.
+// Cleanup removes the VM.
 // This always runs at build end regardless of success, failure or cancellation.
 func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	if s.vmName == "" {
@@ -82,21 +76,6 @@ func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	if err := client.DeleteVM(s.vmName); err != nil {
 		ui.Error(fmt.Sprintf("Warning: failed to delete VM %q: %s", s.vmName, err))
 	}
-
-	// Clean up DataVolumes created for this VM.
-	for _, dvName := range s.dataVolumeNames() {
-		if err := client.DeleteDataVolume(dvName); err != nil {
-			ui.Error(fmt.Sprintf("Warning: failed to delete DataVolume %q: %s", dvName, err))
-		}
-	}
-}
-
-// dataVolumeNames returns the names of DataVolumes created for this VM.
-func (s *StepCreateVM) dataVolumeNames() []string {
-	if s.vmName == "" {
-		return nil
-	}
-	return []string{s.vmName + "-disk-0"}
 }
 
 // buildVMSpec constructs the VirtualMachine resource based on builder type.
@@ -119,8 +98,12 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 	// Build disks and volumes.
 	var disks []hvclient.DiskTarget
 	var volumes []hvclient.Volume
+	builderType, err := cfg.effectiveBuilderType()
+	if err != nil {
+		return nil, err
+	}
 
-	switch cfg.builderType {
+	switch builderType {
 	case BuilderTypeISO:
 		// Resolve ISO image to get its PVC/DataVolume reference.
 		isoImage, err := client.GetVMImageByDisplayName(cfg.ISOImageNamespace, cfg.ISOImageName)
@@ -129,28 +112,39 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 		}
 		isoImageID := fmt.Sprintf("%s/%s", isoImage.ObjectMeta.Namespace, isoImage.ObjectMeta.Name)
 		ui.Say(fmt.Sprintf("Using ISO image %q (id: %s)", cfg.ISOImageName, isoImageID))
+		isoDiskSize := imageSizeToGi(isoImage.Status.Size)
+		rootStorageClass := chooseStorageClass(cfg.StorageClass, isoImage.Status.StorageClassName)
+		if rootStorageClass != cfg.StorageClass {
+			ui.Say(fmt.Sprintf("Using image storage class %q for root disk", rootStorageClass))
+		}
+		cdromStorageClass := chooseISOCDROMStorageClass(rootStorageClass, isoImage.Status.StorageClassName)
+		if cdromStorageClass != rootStorageClass {
+			ui.Say(fmt.Sprintf("Using image storage class %q for ISO CDROM", cdromStorageClass))
+		}
 
 		// Root disk – blank DataVolume created via volume claim template.
 		volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
-			diskName, cfg.DiskSize, cfg.StorageClass, "", cfg.Namespace,
+			diskName, cfg.DiskSize, rootStorageClass, "", cfg.Namespace,
 		))
 		disks = append(disks, hvclient.DiskTarget{
-			Name: "disk-0",
-			Disk: &hvclient.Disk{Bus: "virtio"},
+			Name:      "disk-0",
+			BootOrder: 1,
+			Disk:      &hvclient.Disk{Bus: "virtio"},
 		})
 		volumes = append(volumes, hvclient.Volume{
-			Name:       "disk-0",
-			DataVolume: &hvclient.DataVolumeSource{Name: diskName},
+			Name:                  "disk-0",
+			PersistentVolumeClaim: &hvclient.PersistentVolumeClaimVolumeSource{ClaimName: diskName},
 		})
 
 		// ISO CDROM.
 		cdromPVCName := fmt.Sprintf("packer-iso-%s", randomHex(6))
 		volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
-			cdromPVCName, "1Gi", cfg.StorageClass, isoImageID, isoImage.ObjectMeta.Namespace,
+			cdromPVCName, isoDiskSize, cdromStorageClass, isoImageID, cfg.Namespace,
 		))
 		disks = append(disks, hvclient.DiskTarget{
-			Name:  "cdrom-0",
-			CDRom: &hvclient.CDRom{Bus: "sata", ReadOnly: true},
+			Name:      "cdrom-0",
+			BootOrder: 2,
+			CDRom:     &hvclient.CDRom{Bus: "sata"},
 		})
 		volumes = append(volumes, hvclient.Volume{
 			Name:                  "cdrom-0",
@@ -165,19 +159,26 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 		}
 		srcImageID := fmt.Sprintf("%s/%s", srcImage.ObjectMeta.Namespace, srcImage.ObjectMeta.Name)
 		ui.Say(fmt.Sprintf("Using source image %q (id: %s)", cfg.SourceImageName, srcImageID))
+		storageClass := chooseStorageClass(cfg.StorageClass, srcImage.Status.StorageClassName)
+		if storageClass != cfg.StorageClass {
+			ui.Say(fmt.Sprintf("Using image storage class %q (from source image)", storageClass))
+		}
 
 		// Root disk cloned from source image.
 		volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
-			diskName, cfg.DiskSize, cfg.StorageClass, srcImageID, srcImage.ObjectMeta.Namespace,
+			diskName, cfg.DiskSize, storageClass, srcImageID, cfg.Namespace,
 		))
 		disks = append(disks, hvclient.DiskTarget{
-			Name: "disk-0",
-			Disk: &hvclient.Disk{Bus: "virtio"},
+			Name:      "disk-0",
+			BootOrder: 1,
+			Disk:      &hvclient.Disk{Bus: "virtio"},
 		})
 		volumes = append(volumes, hvclient.Volume{
-			Name:       "disk-0",
-			DataVolume: &hvclient.DataVolumeSource{Name: diskName},
+			Name:                  "disk-0",
+			PersistentVolumeClaim: &hvclient.PersistentVolumeClaimVolumeSource{ClaimName: diskName},
 		})
+	default:
+		return nil, fmt.Errorf("unsupported builder type %q", builderType)
 	}
 
 	// Serialise volumeClaimTemplates annotation.
@@ -202,7 +203,7 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 			},
 		},
 		Spec: hvclient.VirtualMachineSpec{
-			RunStrategy: "Manual",
+			RunStrategy: "Once",
 			Template: hvclient.VMTemplateSpec{
 				ObjectMeta: hvclient.ObjectMeta{
 					Labels: map[string]string{
@@ -286,6 +287,34 @@ func buildVolumeClaimTemplate(name, size, storageClass, imageID, imageNamespace 
 			"storageClassName": storageClass,
 		},
 	}
+}
+
+// imageSizeToGi converts a byte count to a Gi quantity string rounded up.
+// If the size is unknown, it falls back to 4Gi for common installer ISOs.
+func imageSizeToGi(sizeBytes int64) string {
+	if sizeBytes <= 0 {
+		return "4Gi"
+	}
+	const gi = 1024 * 1024 * 1024
+	sizeGi := int64(math.Ceil(float64(sizeBytes) / float64(gi)))
+	if sizeGi < 1 {
+		sizeGi = 1
+	}
+	return fmt.Sprintf("%dGi", sizeGi)
+}
+
+func chooseStorageClass(configStorageClass, imageStorageClass string) string {
+	if imageStorageClass != "" && (configStorageClass == "" || configStorageClass == hvclient.DefaultStorageClass) {
+		return imageStorageClass
+	}
+	return configStorageClass
+}
+
+func chooseISOCDROMStorageClass(rootStorageClass, imageStorageClass string) string {
+	if imageStorageClass != "" {
+		return imageStorageClass
+	}
+	return rootStorageClass
 }
 
 // randomHex returns a cryptographically random lowercase hex string of n bytes

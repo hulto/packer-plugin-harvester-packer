@@ -7,21 +7,6 @@
 # Usage:
 #   packer build -var harvester_token=<token> harvester-clone.pkr.hcl
 
-variable "harvester_url" {
-  type    = string
-  default = "https://192.168.1.100:6443"
-}
-
-variable "harvester_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "namespace" {
-  type    = string
-  default = "default"
-}
-
 source "harvester-clone" "ubuntu" {
   # Harvester connection
   harvester_url   = var.harvester_url

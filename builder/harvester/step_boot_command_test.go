@@ -5,6 +5,8 @@ package harvester
 
 import (
 	"testing"
+
+	"github.com/hashicorp/packer-plugin-sdk/multistep"
 )
 
 // TestSpecialKeys verifies that all special key sequences are defined.
@@ -64,5 +66,34 @@ func TestIsShiftSymbol(t *testing.T) {
 		if isShiftSymbol(r) {
 			t.Errorf("isShiftSymbol(%q) = true, want false", r)
 		}
+	}
+}
+
+func TestUsesHTTPTemplateVars(t *testing.T) {
+	if !usesHTTPTemplateVars([]string{"linux autoinstall ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/"}) {
+		t.Fatal("expected HTTP template vars to be detected")
+	}
+	if usesHTTPTemplateVars([]string{"<enter>", "e", "<f10>"}) {
+		t.Fatal("did not expect HTTP template vars in simple boot commands")
+	}
+}
+
+func TestStateString(t *testing.T) {
+	state := new(multistep.BasicStateBag)
+	state.Put("present", "value")
+	state.Put("int", 8080)
+	state.Put("nilval", nil)
+
+	if got := stateString(state, "present"); got != "value" {
+		t.Fatalf("expected value, got %q", got)
+	}
+	if got := stateString(state, "int"); got != "8080" {
+		t.Fatalf("expected 8080, got %q", got)
+	}
+	if got := stateString(state, "nilval"); got != "" {
+		t.Fatalf("expected empty string for nil value, got %q", got)
+	}
+	if got := stateString(state, "missing"); got != "" {
+		t.Fatalf("expected empty string for missing key, got %q", got)
 	}
 }

@@ -156,6 +156,12 @@ func NewClientFromKubeconfigWithOverrides(kubeconfigPath, namespace, overrideURL
 
 // request performs an authenticated HTTP request and returns the raw body bytes.
 func (c *HarvesterClient) request(method, path string, body interface{}) ([]byte, int, error) {
+	return c.requestWithAccept(method, path, body, "application/json")
+}
+
+// requestWithAccept performs an authenticated HTTP request with a custom
+// Accept header and returns the raw body bytes.
+func (c *HarvesterClient) requestWithAccept(method, path string, body interface{}, accept string) ([]byte, int, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
@@ -176,7 +182,10 @@ func (c *HarvesterClient) request(method, path string, body interface{}) ([]byte
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	req.Header.Set("Accept", "application/json")
+	if accept == "" {
+		accept = "application/json"
+	}
+	req.Header.Set("Accept", accept)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -276,11 +285,11 @@ func (c *HarvesterClient) GetVM(name string) (*VirtualMachine, error) {
 	return &vm, nil
 }
 
-// StartVM sets the VM runStrategy to Always to start it.
+// StartVM invokes the VM start subresource.
 func (c *HarvesterClient) StartVM(name string) error {
 	path := fmt.Sprintf("%s/namespaces/%s/virtualmachines/%s/start",
 		subresourcesPath, c.namespace, name)
-	_, _, err := c.request(http.MethodPut, path, struct{}{})
+	_, _, err := c.requestWithAccept(http.MethodPut, path, struct{}{}, "*/*")
 	if err != nil {
 		return fmt.Errorf("start VM %s: %w", name, err)
 	}
@@ -291,7 +300,7 @@ func (c *HarvesterClient) StartVM(name string) error {
 func (c *HarvesterClient) StopVM(name string) error {
 	path := fmt.Sprintf("%s/namespaces/%s/virtualmachines/%s/stop",
 		subresourcesPath, c.namespace, name)
-	_, _, err := c.request(http.MethodPut, path, struct{}{})
+	_, _, err := c.requestWithAccept(http.MethodPut, path, struct{}{}, "*/*")
 	if err != nil {
 		return fmt.Errorf("stop VM %s: %w", name, err)
 	}

@@ -7,21 +7,6 @@
 # Usage:
 #   packer build -var harvester_token=<token> harvester-iso.pkr.hcl
 
-variable "harvester_url" {
-  type    = string
-  default = "https://192.168.1.100:6443"
-}
-
-variable "harvester_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "namespace" {
-  type    = string
-  default = "default"
-}
-
 source "harvester-iso" "ubuntu" {
   # Harvester connection
   harvester_url   = var.harvester_url
@@ -52,7 +37,7 @@ source "harvester-iso" "ubuntu" {
   boot_wait = "5s"
   boot_command = [
     "<enter>",
-    "<wait3>",
+    "<wait><wait><wait>",
     "e",
     "<down><down><down><end>",
     " autoinstall ds=nocloud-net\\;s=http://{{.HTTPIP}}:{{.HTTPPort}}/",

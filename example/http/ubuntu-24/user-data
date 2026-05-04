@@ -1,0 +1,26 @@
+#cloud-config
+autoinstall:
+  version: 1
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  timezone: UTC
+  identity:
+    hostname: ubuntu24-golden
+    username: ubuntu
+    # plaintext password: ubuntu
+    password: "$6$rounds=4096$h2fIknLzlkGbMltF$u84PnMLL4JkuD67Smu3aWmYTwMvWSzudk3ka9jzMslICg97dDMjowhQTiAsQ7m85nQwJe0j6mVn6jGS6JCGko."
+  ssh:
+    install-server: true
+    allow-pw: true
+  packages:
+    - openssh-server
+    - qemu-guest-agent
+    - cloud-init
+  storage:
+    layout:
+      name: direct
+  late-commands:
+    - curtin in-target --target=/target -- systemctl enable qemu-guest-agent
+    - curtin in-target --target=/target -- apt-get clean
+  shutdown: poweroff
