@@ -208,10 +208,11 @@ type DataVolumeSpec struct {
 
 // DataVolumeSpecSource describes the data source for a DataVolume.
 type DataVolumeSpecSource struct {
-	HTTP     *DataVolumeSourceHTTP  `json:"http,omitempty"`
-	PVC      *DataVolumeSourcePVC   `json:"pvc,omitempty"`
-	Blank    *DataVolumeSourceBlank `json:"blank,omitempty"`
-	Registry *DataVolumeSourceReg   `json:"registry,omitempty"`
+	HTTP     *DataVolumeSourceHTTP   `json:"http,omitempty"`
+	PVC      *DataVolumeSourcePVC    `json:"pvc,omitempty"`
+	Blank    *DataVolumeSourceBlank  `json:"blank,omitempty"`
+	Registry *DataVolumeSourceReg    `json:"registry,omitempty"`
+	Upload   *DataVolumeSourceUpload `json:"upload,omitempty"`
 }
 
 // DataVolumeSourceHTTP imports data from a URL.
@@ -232,6 +233,9 @@ type DataVolumeSourceBlank struct{}
 type DataVolumeSourceReg struct {
 	URL string `json:"url"`
 }
+
+// DataVolumeSourceUpload tells CDI the content will be uploaded directly.
+type DataVolumeSourceUpload struct{}
 
 // DataVolumeStatus describes DataVolume phase.
 type DataVolumeStatus struct {
@@ -263,12 +267,24 @@ type VirtualMachineImageSpec struct {
 	PVCNamespace string `json:"pvcNamespace,omitempty"`
 }
 
+// VirtualMachineImageCondition is a single condition on a VirtualMachineImage.
+type VirtualMachineImageCondition struct {
+	Type               string `json:"type"`
+	Status             string `json:"status"` // "True", "False", "Unknown"
+	LastUpdateTime     string `json:"lastUpdateTime,omitempty"`
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
+	Reason             string `json:"reason,omitempty"`
+	Message            string `json:"message,omitempty"`
+}
+
 // VirtualMachineImageStatus describes image status.
 type VirtualMachineImageStatus struct {
-	Phase            string `json:"phase,omitempty"`
-	Message          string `json:"message,omitempty"`
-	Size             int64  `json:"size,omitempty"`
-	StorageClassName string `json:"storageClassName,omitempty"`
+	Phase            string                         `json:"phase,omitempty"`
+	Message          string                         `json:"message,omitempty"`
+	Progress         int                            `json:"progress,omitempty"`
+	Size             int64                          `json:"size,omitempty"`
+	StorageClassName string                         `json:"storageClassName,omitempty"`
+	Conditions       []VirtualMachineImageCondition `json:"conditions,omitempty"`
 }
 
 // VirtualMachineImage is a Harvester image CRD.

@@ -4,6 +4,8 @@
 package harvester
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -366,6 +368,71 @@ func TestConfigPrepare_CloudInitNoCloud(t *testing.T) {
 		})
 		if err == nil {
 			t.Fatal("expected error for HTTP template variables with cloud-init NoCloud")
+		}
+	})
+}
+
+func TestConfigPrepare_CDConfig(t *testing.T) {
+	t.Run("accepts_cd_files_for_iso", func(t *testing.T) {
+		tempDir := t.TempDir()
+		userData := filepath.Join(tempDir, "user-data")
+		if err := os.WriteFile(userData, []byte("#cloud-config\nusers: []\n"), 0600); err != nil {
+			t.Fatalf("write user-data fixture: %v", err)
+		}
+
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":  "https://192.168.1.1:6443",
+			"token":          "testtoken",
+			"iso_image_name": "ubuntu-24-iso",
+			"ssh_username":   "ubuntu",
+			"ssh_password":   "secret",
+			"cd_files":       []string{userData},
+			"skip_tls_verify": true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(cfg.CDFiles) != 1 || cfg.CDFiles[0] != userData {
+			t.Fatalf("unexpected prepared cd_files: %#v", cfg.CDFiles)
+		}
+	})
+
+	t.Run("rejects_missing_cd_file", func(t *testing.T) {
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":   "https://192.168.1.1:6443",
+			"token":           "testtoken",
+			"iso_image_name":  "ubuntu-24-iso",
+			"ssh_username":    "ubuntu",
+			"ssh_password":    "secret",
+			"cd_files":        []string{"/path/that/does/not/exist"},
+			"skip_tls_verify": true,
+		})
+		if err == nil {
+			t.Fatal("expected error for missing cd_files path")
+		}
+	})
+
+	t.Run("rejects_cd_files_for_clone", func(t *testing.T) {
+		tempDir := t.TempDir()
+		seed := filepath.Join(tempDir, "seed")
+		if err := os.WriteFile(seed, []byte("seed"), 0600); err != nil {
+			t.Fatalf("write seed fixture: %v", err)
+		}
+
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeClone, map[string]interface{}{
+			"harvester_url":     "https://192.168.1.1:6443",
+			"token":             "testtoken",
+			"source_image_name": "ubuntu-24-golden",
+			"ssh_username":      "ubuntu",
+			"ssh_password":      "secret",
+			"cd_files":          []string{seed},
+			"skip_tls_verify":   true,
+		})
+		if err == nil {
+			t.Fatal("expected error for cd_files on clone builder")
 		}
 	})
 }

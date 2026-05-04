@@ -13,6 +13,7 @@ import (
 
 	"github.com/hashicorp/packer-plugin-sdk/common"
 	"github.com/hashicorp/packer-plugin-sdk/communicator"
+	"github.com/hashicorp/packer-plugin-sdk/multistep/commonsteps"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
 )
@@ -31,6 +32,7 @@ const (
 type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 	communicator.Config `mapstructure:",squash"`
+	commonsteps.CDConfig `mapstructure:",squash"`
 
 	// --- Harvester connection ---
 
@@ -235,6 +237,12 @@ func (c *Config) Prepare(builderType BuilderType, raws ...interface{}) ([]string
 		}
 	}
 
+	if cdErrs := c.CDConfig.Prepare(&c.ctx); len(cdErrs) > 0 {
+		for _, e := range cdErrs {
+			errs = appendErr(errs, e)
+		}
+	}
+
 	// Default namespace fall-through for image namespaces.
 	if c.ISOImageNamespace == "" {
 		c.ISOImageNamespace = c.Namespace
@@ -263,6 +271,9 @@ func (c *Config) Prepare(builderType BuilderType, raws ...interface{}) ([]string
 	case BuilderTypeClone:
 		if c.SourceImageName == "" {
 			errs = appendErr(errs, errors.New("'source_image_name' is required for the clone builder"))
+		}
+		if c.hasCDConfig() {
+			errs = appendErr(errs, errors.New("'cd_files', 'cd_content', and 'cd_label' are only supported for the ISO builder"))
 		}
 	default:
 		errs = appendErr(errs, fmt.Errorf("unknown builder type %q", builderType))
@@ -347,4 +358,8 @@ func (c *Config) hasCloudInitNoCloudConfig() bool {
 	return strings.TrimSpace(c.CloudInitUserData) != "" ||
 		strings.TrimSpace(c.CloudInitMetaData) != "" ||
 		strings.TrimSpace(c.CloudInitNetworkData) != ""
+}
+
+func (c *Config) hasCDConfig() bool {
+	return len(c.CDFiles) > 0 || len(c.CDContent) > 0 || strings.TrimSpace(c.CDLabel) != ""
 }

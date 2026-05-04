@@ -52,6 +52,7 @@ func (b *ISOBuilder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (p
 			HTTPPortMax: b.config.HTTPPortMax,
 			HTTPIP:      b.config.HTTPIP,
 		},
+		&StepCreateCDImage{Config: &b.config},
 		&StepCreateVM{Config: &b.config},
 		&StepBootCommand{Config: &b.config},
 		&StepWaitForInstance{Config: &b.config},

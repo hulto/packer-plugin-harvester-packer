@@ -45,5 +45,5 @@ go build -ldflags="-X github.com/hashicorp/packer-plugin-scaffolding/version.Ver
 packer plugins install --path packer-plugin-scaffolding github.com/hashicorp/scaffolding
 cd example/
 packer init harvester-iso-ubuntu24-golden.pkr.hcl
-packer build -var "kubeconfig=/persistent/workspaces/.kube/config" harvester-iso-ubuntu24-golden.pkr.hcl
+packer build -on-error=abort -var "kubeconfig=/persistent/workspaces/.kube/config" harvester-iso-ubuntu24-golden.pkr.hcl
 ```

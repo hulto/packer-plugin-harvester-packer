@@ -17,14 +17,17 @@ the root disk as a `VirtualMachineImage`.
 
 1. A temporary `VirtualMachine` is created with a blank root disk and the ISO
    image attached as a CDROM.
-2. The VM is started.
-3. Optional `boot_command` entries are sent to the VM's VNC console to automate
+2. If `cd_files` or `cd_content` is configured, Packer builds an auxiliary ISO,
+  imports it as a temporary Harvester image, and attaches it as an additional
+  CDROM.
+3. The VM is started.
+4. Optional `boot_command` entries are sent to the VM's VNC console to automate
    the installer.
-4. Packer waits for the VM to become `Running` and connects via SSH (or WinRM).
-5. Provisioners run inside the guest.
-6. The VM is stopped gracefully.
-7. A new `VirtualMachineImage` is exported from the root disk.
-8. The temporary VM is cleaned up.
+5. Packer waits for the VM to become `Running` and connects via SSH (or WinRM).
+6. Provisioners run inside the guest.
+7. The VM is stopped gracefully.
+8. A new `VirtualMachineImage` is exported from the root disk.
+9. Temporary VM and auxiliary CD image resources are cleaned up.
 
 <!-- Builder Configuration Fields -->
 
@@ -95,6 +98,17 @@ the root disk as a `VirtualMachineImage`.
 - `http_directory` (string) - Directory served over HTTP during the build for
   preseed/kickstart files. Use `{{.HTTPIP}}` and `{{.HTTPPort}}` in
   `boot_command`.
+
+- `cd_files` (list of strings) - Files and/or directories to include in an
+  auxiliary ISO. Directories are copied recursively and globs are supported.
+  The generated ISO is imported into Harvester and attached as an additional
+  CDROM.
+
+- `cd_content` (map of strings) - Inline path/content pairs to include in the
+  auxiliary ISO. Keys are file paths inside the ISO and values are file
+  contents. Entries override matching paths from `cd_files`.
+
+- `cd_label` (string) - Volume label for the generated auxiliary ISO.
 
 - `http_port_min` / `http_port_max` (int) - Port range for the local HTTP server.
   Defaults to `8000`–`9000`.

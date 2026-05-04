@@ -41,7 +41,7 @@ func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multiste
 
 	ui.Say(fmt.Sprintf("Creating build VM %q in namespace %q...", s.vmName, s.Config.Namespace))
 
-	vm, err := s.buildVMSpec(client, ui)
+	vm, err := s.buildVMSpec(state, client, ui)
 	if err != nil {
 		ui.Error(fmt.Sprintf("Failed to build VM spec: %s", err))
 		state.Put("error", err)
@@ -79,7 +79,7 @@ func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 }
 
 // buildVMSpec constructs the VirtualMachine resource based on builder type.
-func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersdk.Ui) (*hvclient.VirtualMachine, error) {
+func (s *StepCreateVM) buildVMSpec(state multistep.StateBag, client *hvclient.HarvesterClient, ui packersdk.Ui) (*hvclient.VirtualMachine, error) {
 	cfg := s.Config
 	memory := fmt.Sprintf("%dMi", cfg.MemoryMB)
 	cpu := cfg.CPUCores
@@ -150,6 +150,42 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 			Name:                  "cdrom-0",
 			PersistentVolumeClaim: &hvclient.PersistentVolumeClaimVolumeSource{ClaimName: cdromPVCName, ReadOnly: true},
 		})
+
+		if cdImageNameRaw, ok := state.GetOk("cd_image_name"); ok {
+			cdImageName := strings.TrimSpace(fmt.Sprintf("%v", cdImageNameRaw))
+			if cdImageName != "" {
+				cdImageNS := cfg.Namespace
+				if cdImageNSRaw, ok := state.GetOk("cd_image_namespace"); ok {
+					if ns := strings.TrimSpace(fmt.Sprintf("%v", cdImageNSRaw)); ns != "" {
+						cdImageNS = ns
+					}
+				}
+
+				auxCDImage, err := client.GetVMImage(cdImageNS, cdImageName)
+				if err != nil {
+					return nil, fmt.Errorf("auxiliary cd image %q: %w", cdImageName, err)
+				}
+
+				auxCDImageID := fmt.Sprintf("%s/%s", auxCDImage.ObjectMeta.Namespace, auxCDImage.ObjectMeta.Name)
+				auxCDDiskSize := imageSizeToGi(auxCDImage.Status.Size)
+				auxCDStorageClass := chooseISOCDROMStorageClass(rootStorageClass, auxCDImage.Status.StorageClassName)
+				auxCDPVCName := fmt.Sprintf("packer-cd-%s", randomHex(6))
+
+				volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
+					auxCDPVCName, auxCDDiskSize, auxCDStorageClass, auxCDImageID, cfg.Namespace,
+				))
+				disks = append(disks, hvclient.DiskTarget{
+					Name:  "cdrom-1",
+					CDRom: &hvclient.CDRom{Bus: "sata"},
+				})
+				volumes = append(volumes, hvclient.Volume{
+					Name:                  "cdrom-1",
+					PersistentVolumeClaim: &hvclient.PersistentVolumeClaimVolumeSource{ClaimName: auxCDPVCName, ReadOnly: true},
+				})
+
+				ui.Say(fmt.Sprintf("Attached auxiliary CD image %q as additional CD-ROM", cdImageName))
+			}
+		}
 
 	case BuilderTypeClone:
 		// Resolve source image.

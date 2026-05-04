@@ -33,9 +33,9 @@ source "harvester-iso" "ubuntu24_golden" {
   namespace  = var.namespace
 
   # VM resources for installer run
-  cpu_cores = 2
-  memory_mb = 4096
-  disk_size = "40Gi"
+  cpu_cores     = 4
+  memory_mb     = 16384
+  disk_size     = "40Gi"
   storage_class = "duplicated"
 
   # Source ISO image
@@ -52,18 +52,27 @@ source "harvester-iso" "ubuntu24_golden" {
   ssh_password = "ubuntu"
   ssh_timeout  = "30m"
 
-  # Ubuntu 24 Server autoinstall via attached NoCloud cloud-init drive.
-  boot_wait = "2s"
+  # Ubuntu 24 Server autoinstall via the auxiliary NoCloud ISO on /dev/sr1.
+  # /dev/sr0 is the Ubuntu installer ISO; /dev/sr1 is our cidata ISO (cd_files).
+  # Subiquity reads user-data/meta-data from the path given after ds=nocloud;s=
+  boot_wait = "5s"
   boot_command = [
-    "<wait>",
+    "<wait5>",
     "e",
     "<down><down><down><end>",
-    " autoinstall",
+    " autoinstall ds=nocloud\\;s=/cdrom1/",
     "<F10>",
   ]
 
-  cloud_init_user_data = file("${path.root}/http/ubuntu-24/user-data")
-  cloud_init_meta_data = file("${path.root}/http/ubuntu-24/meta-data")
+  # Build and attach an auxiliary NoCloud ISO with cloud-init seed files.
+  cd_label = "cidata"
+  cd_files = [
+    "${path.root}/http/ubuntu-24/meta-data",
+    "${path.root}/http/ubuntu-24/user-data",
+  ]
+
+  #   cloud_init_user_data = file("${path.root}/http/ubuntu-24/user-data")
+  #   cloud_init_meta_data = file("${path.root}/http/ubuntu-24/meta-data")
 }
 
 build {

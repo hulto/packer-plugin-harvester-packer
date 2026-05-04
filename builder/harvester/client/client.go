@@ -12,8 +12,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -464,6 +470,88 @@ func (c *HarvesterClient) DeleteVMImage(namespace, name string) error {
 		return fmt.Errorf("delete VirtualMachineImage %s/%s: %w", namespace, name, err)
 	}
 	return nil
+}
+
+// UploadVMImage uploads image content to Harvester using multipart/form-data,
+// matching the endpoint pattern used by the Harvester Terraform provider.
+func (c *HarvesterClient) UploadVMImage(namespace, name string, body io.ReadSeeker, size int64) error {
+	q := url.Values{}
+	q.Set("action", "upload")
+	q.Set("size", strconv.FormatInt(size, 10))
+	path := fmt.Sprintf("/v1/harvester/harvesterhci.io.virtualmachineimages/%s/%s?%s",
+		url.PathEscape(namespace), url.PathEscape(name), q.Encode())
+
+	const maxRetries = 5
+	const retryDelay = 5 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if _, err := body.Seek(0, io.SeekStart); err != nil {
+			return fmt.Errorf("reset upload stream: %w", err)
+		}
+
+		filename := name + ".iso"
+		if namer, ok := body.(interface{ Name() string }); ok {
+			if base := filepath.Base(namer.Name()); base != "" && base != "." {
+				filename = base
+			}
+		}
+
+		pr, pw := io.Pipe()
+		mw := multipart.NewWriter(pw)
+		go func() {
+			h := make(textproto.MIMEHeader)
+			h.Set("Content-Disposition",
+				fmt.Sprintf(`form-data; name="chunk"; filename="%s"`, filename))
+			h.Set("Content-Type", "application/octet-stream")
+			part, err := mw.CreatePart(h)
+			if err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+			if _, err := io.Copy(part, body); err != nil {
+				pw.CloseWithError(err)
+				return
+			}
+			pw.CloseWithError(mw.Close())
+		}()
+
+		req, err := http.NewRequest(http.MethodPost, c.baseURL+path, pr)
+		if err != nil {
+			pr.CloseWithError(err)
+			return fmt.Errorf("create upload request: %w", err)
+		}
+		if c.token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.token)
+		}
+		req.Header.Set("Content-Type", mw.FormDataContentType())
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			time.Sleep(retryDelay)
+			continue
+		}
+		respBody, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode < 400 {
+			return nil
+		}
+
+		msg := strings.ToLower(string(respBody))
+		if resp.StatusCode == 400 && strings.Contains(msg, "already exists") {
+			time.Sleep(retryDelay)
+			continue
+		}
+		if resp.StatusCode == 500 && strings.Contains(msg, "timeout waiting") {
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		return fmt.Errorf("image upload API error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return fmt.Errorf("image upload failed after %d attempts", maxRetries)
 }
 
 // GetVMImageByDisplayName finds a VirtualMachineImage by its display name.
