@@ -299,3 +299,73 @@ func TestChooseISOCDROMStorageClass(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigPrepare_CloudInitNoCloud(t *testing.T) {
+	t.Run("accepts_cloud_init_without_http", func(t *testing.T) {
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":        "https://192.168.1.1:6443",
+			"token":                "testtoken",
+			"iso_image_name":       "ubuntu-24-iso",
+			"ssh_username":         "ubuntu",
+			"ssh_password":         "secret",
+			"cloud_init_user_data": "#cloud-config\nusers: []\n",
+			"skip_tls_verify":      true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects_partial_cloud_init_without_user_data", func(t *testing.T) {
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":           "https://192.168.1.1:6443",
+			"token":                   "testtoken",
+			"iso_image_name":          "ubuntu-24-iso",
+			"ssh_username":            "ubuntu",
+			"ssh_password":            "secret",
+			"cloud_init_network_data": "version: 2\n",
+			"skip_tls_verify":         true,
+		})
+		if err == nil {
+			t.Fatal("expected error for missing cloud_init_user_data")
+		}
+	})
+
+	t.Run("rejects_http_directory_with_cloud_init", func(t *testing.T) {
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":        "https://192.168.1.1:6443",
+			"token":                "testtoken",
+			"iso_image_name":       "ubuntu-24-iso",
+			"ssh_username":         "ubuntu",
+			"ssh_password":         "secret",
+			"cloud_init_user_data": "#cloud-config\nusers: []\n",
+			"http_directory":       "./http",
+			"skip_tls_verify":      true,
+		})
+		if err == nil {
+			t.Fatal("expected error for mixing http_directory and cloud-init NoCloud")
+		}
+	})
+
+	t.Run("rejects_http_template_vars_with_cloud_init", func(t *testing.T) {
+		cfg := &Config{}
+		_, _, err := cfg.Prepare(BuilderTypeISO, map[string]interface{}{
+			"harvester_url":        "https://192.168.1.1:6443",
+			"token":                "testtoken",
+			"iso_image_name":       "ubuntu-24-iso",
+			"ssh_username":         "ubuntu",
+			"ssh_password":         "secret",
+			"cloud_init_user_data": "#cloud-config\nusers: []\n",
+			"boot_command": []string{
+				" autoinstall ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/",
+			},
+			"skip_tls_verify": true,
+		})
+		if err == nil {
+			t.Fatal("expected error for HTTP template variables with cloud-init NoCloud")
+		}
+	})
+}

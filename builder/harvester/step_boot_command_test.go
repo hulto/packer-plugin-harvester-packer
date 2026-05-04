@@ -4,6 +4,7 @@
 package harvester
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
@@ -96,4 +97,61 @@ func TestStateString(t *testing.T) {
 	if got := stateString(state, "missing"); got != "" {
 		t.Fatalf("expected empty string for missing key, got %q", got)
 	}
+}
+
+func TestHTTPIPFromBaseURL(t *testing.T) {
+	t.Run("ip_literal", func(t *testing.T) {
+		got, err := httpIPFromBaseURL("https://10.10.127.200:6443")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "10.10.127.200" {
+			t.Fatalf("expected 10.10.127.200, got %q", got)
+		}
+	})
+
+	t.Run("invalid_url", func(t *testing.T) {
+		if _, err := httpIPFromBaseURL("://bad-url"); err == nil {
+			t.Fatal("expected error for invalid URL")
+		}
+	})
+}
+
+func TestIsRecoverableVNCError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "nil", err: nil, want: false},
+		{name: "broken_pipe", err: errors.New("write: broken pipe"), want: true},
+		{name: "connection_reset", err: errors.New("read: connection reset by peer"), want: true},
+		{name: "other", err: errors.New("unknown special key sequence"), want: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isRecoverableVNCError(tc.err); got != tc.want {
+				t.Fatalf("isRecoverableVNCError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResolveHTTPIP(t *testing.T) {
+	t.Run("uses_api_host_ip_without_vm_ip", func(t *testing.T) {
+		got, err := resolveHTTPIP("https://10.10.127.200:6443", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "10.10.127.200" {
+			t.Fatalf("expected 10.10.127.200, got %q", got)
+		}
+	})
+
+	t.Run("fails_when_no_vm_ip_and_bad_api_host", func(t *testing.T) {
+		if _, err := resolveHTTPIP("://bad-url", ""); err == nil {
+			t.Fatal("expected error for bad API host without vm_ip")
+		}
+	})
 }

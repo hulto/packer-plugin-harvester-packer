@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 	"unicode"
@@ -72,15 +73,10 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 		}
 		if httpIP == "" {
 			vmIP := stateString(state, "vm_ip")
-			if vmIP == "" {
-				ui.Error("boot_command references HTTPIP but vm_ip is unknown")
-				state.Put("error", fmt.Errorf("boot_command requires HTTPIP, but vm_ip is not available"))
-				return multistep.ActionHalt
-			}
-			resolvedIP, err := localIPForTarget(vmIP)
+			resolvedIP, err := resolveHTTPIP(client.BaseURL(), vmIP)
 			if err != nil {
 				ui.Error(fmt.Sprintf("Failed to resolve HTTPIP for VM reachability: %s", err))
-				state.Put("error", fmt.Errorf("resolve HTTPIP from vm_ip %q: %w", vmIP, err))
+				state.Put("error", fmt.Errorf("resolve HTTPIP for boot_command: %w", err))
 				return multistep.ActionHalt
 			}
 			httpIP = resolvedIP
@@ -96,8 +92,7 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 		},
 	}
 
-	// Connect to VNC WebSocket.
-	conn, err := s.dialVNC(client, vmName)
+	conn, err := s.connectAndHandshakeVNCWithRetry(ctx, client, vmName, s.Config.WaitForInstanceTimeout)
 	if err != nil {
 		ui.Error(fmt.Sprintf("Failed to connect to VNC for VM %q: %s", vmName, err))
 		state.Put("error", err)
@@ -108,13 +103,6 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 	ui.Say(fmt.Sprintf("Connected to VNC console of VM %q; sending %d boot command(s)...",
 		vmName, len(s.Config.BootCommand)))
 
-	// Perform the RFB handshake.
-	if err := rfbHandshake(conn); err != nil {
-		ui.Error(fmt.Sprintf("VNC handshake failed: %s", err))
-		state.Put("error", err)
-		return multistep.ActionHalt
-	}
-
 	// Send each command line.
 	for _, cmd := range s.Config.BootCommand {
 		rendered, err := interpolate.Render(cmd, renderCtx)
@@ -123,7 +111,29 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 			state.Put("error", err)
 			return multistep.ActionHalt
 		}
-		if err := sendBootCommand(conn, rendered); err != nil {
+		const maxAttempts = 3
+		sent := false
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			err = sendBootCommand(conn, rendered)
+			if err == nil {
+				sent = true
+				break
+			}
+			if !isRecoverableVNCError(err) || attempt == maxAttempts {
+				break
+			}
+
+			ui.Say(fmt.Sprintf("VNC connection dropped while sending boot command; reconnecting (attempt %d/%d): %s", attempt+1, maxAttempts, err))
+			_ = conn.Close()
+			conn, err = s.connectAndHandshakeVNC(client, vmName)
+			if err != nil {
+				ui.Error(fmt.Sprintf("Failed to reconnect VNC for VM %q: %s", vmName, err))
+				state.Put("error", err)
+				return multistep.ActionHalt
+			}
+		}
+
+		if !sent {
 			ui.Error(fmt.Sprintf("Failed to send boot command: %s", err))
 			state.Put("error", err)
 			return multistep.ActionHalt
@@ -136,6 +146,42 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 
 // Cleanup is a no-op.
 func (s *StepBootCommand) Cleanup(_ multistep.StateBag) {}
+
+func (s *StepBootCommand) connectAndHandshakeVNC(client *hvclient.HarvesterClient, vmName string) (*websocket.Conn, error) {
+	conn, err := s.dialVNC(client, vmName)
+	if err != nil {
+		return nil, err
+	}
+	if err := rfbHandshake(conn); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("VNC handshake failed: %w", err)
+	}
+	return conn, nil
+}
+
+func (s *StepBootCommand) connectAndHandshakeVNCWithRetry(ctx context.Context, client *hvclient.HarvesterClient, vmName string, timeout time.Duration) (*websocket.Conn, error) {
+	if timeout <= 0 {
+		timeout = 2 * time.Minute
+	}
+
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		conn, err := s.connectAndHandshakeVNC(client, vmName)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+		time.Sleep(2 * time.Second)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("timed out waiting for VNC")
+	}
+	return nil, lastErr
+}
 
 // dialVNC opens a WebSocket connection to the KubeVirt VNC subresource.
 func (s *StepBootCommand) dialVNC(client *hvclient.HarvesterClient, vmName string) (*websocket.Conn, error) {
@@ -306,7 +352,7 @@ func sendKeyPress(conn *websocket.Conn, keySym uint32) error {
 	if err := sendKeyDown(conn, keySym); err != nil {
 		return err
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	return sendKeyUp(conn, keySym)
 }
 
@@ -467,6 +513,47 @@ func stateString(state multistep.StateBag, key string) string {
 	return s
 }
 
+// resolveHTTPIP determines a reachable IP for the HTTP server that guests can
+// use in boot command templates. It prefers the API server host (which is
+// usually routable from the VM network), then falls back to the local source
+// IP used to reach the VM.
+func resolveHTTPIP(baseURL, vmIP string) (string, error) {
+	if ip, err := httpIPFromBaseURL(baseURL); err == nil && ip != "" {
+		return ip, nil
+	}
+	if vmIP == "" {
+		return "", fmt.Errorf("no vm_ip available and API host was not usable")
+	}
+	return localIPForTarget(vmIP)
+}
+
+func httpIPFromBaseURL(baseURL string) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse base URL: %w", err)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("base URL %q has no host", baseURL)
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), nil
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return "", fmt.Errorf("lookup %q: %w", host, err)
+	}
+	for _, ip := range ips {
+		if v4 := ip.To4(); v4 != nil {
+			return v4.String(), nil
+		}
+	}
+	if len(ips) > 0 {
+		return ips[0].String(), nil
+	}
+	return "", fmt.Errorf("no IP addresses resolved for %q", host)
+}
+
 // localIPForTarget finds the local source IP that would be used to reach the target.
 func localIPForTarget(targetIP string) (string, error) {
 	conn, err := net.Dial("udp", net.JoinHostPort(targetIP, "80"))
@@ -480,4 +567,15 @@ func localIPForTarget(targetIP string) (string, error) {
 		return "", fmt.Errorf("unexpected local address %T", conn.LocalAddr())
 	}
 	return addr.IP.String(), nil
+}
+
+func isRecoverableVNCError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "connection closed") ||
+		strings.Contains(msg, "close sent")
 }

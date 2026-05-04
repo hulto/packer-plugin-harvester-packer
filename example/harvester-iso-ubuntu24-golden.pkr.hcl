@@ -52,18 +52,18 @@ source "harvester-iso" "ubuntu24_golden" {
   ssh_password = "ubuntu"
   ssh_timeout  = "30m"
 
-  # Ubuntu 24 Server autoinstall over NoCloud HTTP
-  boot_wait = "10s"
+  # Ubuntu 24 Server autoinstall via attached NoCloud cloud-init drive.
+  boot_wait = "2s"
   boot_command = [
-    "<enter>",
-    "<wait><wait><wait>",
+    "<wait>",
     "e",
     "<down><down><down><end>",
-    " autoinstall ds=nocloud-net\\;s=http://{{.HTTPIP}}:{{.HTTPPort}}/",
+    " autoinstall",
     "<F10>",
   ]
 
-  http_directory = "./http/ubuntu-24"
+  cloud_init_user_data = file("${path.root}/http/ubuntu-24/user-data")
+  cloud_init_meta_data = file("${path.root}/http/ubuntu-24/meta-data")
 }
 
 build {

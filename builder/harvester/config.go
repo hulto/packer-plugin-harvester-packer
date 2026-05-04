@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hashicorp/packer-plugin-sdk/communicator"
 	"github.com/hashicorp/packer-plugin-sdk/common"
+	"github.com/hashicorp/packer-plugin-sdk/communicator"
 	"github.com/hashicorp/packer-plugin-sdk/template/config"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
 )
@@ -134,6 +134,25 @@ type Config struct {
 	HTTPPortMin int `mapstructure:"http_port_min"`
 	HTTPPortMax int `mapstructure:"http_port_max"`
 
+	// HTTPIP is an optional explicit IP address advertised to the guest for
+	// boot_command template variable {{.HTTPIP}}. When empty, the builder
+	// auto-detects a reachable address.
+	HTTPIP string `mapstructure:"http_ip"`
+
+	// --- Cloud-Init NoCloud (attached volume delivery) ---
+
+	// CloudInitUserData is the cloud-init user-data content attached to the VM
+	// as a NoCloud volume.
+	CloudInitUserData string `mapstructure:"cloud_init_user_data"`
+
+	// CloudInitMetaData is optional cloud-init meta-data content attached to the
+	// VM as a NoCloud volume. When omitted, sensible defaults are generated.
+	CloudInitMetaData string `mapstructure:"cloud_init_meta_data"`
+
+	// CloudInitNetworkData is optional cloud-init network config content attached
+	// to the VM as a NoCloud volume.
+	CloudInitNetworkData string `mapstructure:"cloud_init_network_data"`
+
 	// WaitForInstanceTimeout is the maximum time to wait for the VM to reach
 	// Running state. Defaults to 10 minutes.
 	WaitForInstanceTimeout time.Duration `mapstructure:"wait_for_instance_timeout"`
@@ -201,6 +220,19 @@ func (c *Config) Prepare(builderType BuilderType, raws ...interface{}) ([]string
 	}
 	if c.HTTPPortMax == 0 {
 		c.HTTPPortMax = 9000
+	}
+
+	hasCloudInitConfig := c.hasCloudInitNoCloudConfig()
+	if hasCloudInitConfig {
+		if strings.TrimSpace(c.CloudInitUserData) == "" {
+			errs = appendErr(errs, errors.New("'cloud_init_user_data' must be set when using cloud-init NoCloud fields"))
+		}
+		if strings.TrimSpace(c.HTTPDir) != "" {
+			errs = appendErr(errs, errors.New("'http_directory' cannot be set when using cloud-init NoCloud fields"))
+		}
+		if usesHTTPTemplateVars(c.BootCommand) {
+			errs = appendErr(errs, errors.New("'boot_command' cannot reference {{.HTTPIP}}/{{.HTTPPort}} when using cloud-init NoCloud fields"))
+		}
 	}
 
 	// Default namespace fall-through for image namespaces.
@@ -309,4 +341,10 @@ func (c *Config) effectiveBuilderType() (BuilderType, error) {
 	default:
 		return "", errors.New("cannot infer builder type: neither 'iso_image_name' nor 'source_image_name' is set")
 	}
+}
+
+func (c *Config) hasCloudInitNoCloudConfig() bool {
+	return strings.TrimSpace(c.CloudInitUserData) != "" ||
+		strings.TrimSpace(c.CloudInitMetaData) != "" ||
+		strings.TrimSpace(c.CloudInitNetworkData) != ""
 }

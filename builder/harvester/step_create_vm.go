@@ -181,6 +181,11 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 		return nil, fmt.Errorf("unsupported builder type %q", builderType)
 	}
 
+	if cfg.hasCloudInitNoCloudConfig() {
+		disks, volumes = appendCloudInitNoCloudDiskAndVolume(disks, volumes, cfg, s.vmName)
+		ui.Say("Attaching cloud-init NoCloud volume for guest initialization")
+	}
+
 	// Serialise volumeClaimTemplates annotation.
 	vctJSON, err := json.Marshal(volClaimTemplates)
 	if err != nil {
@@ -236,6 +241,29 @@ func (s *StepCreateVM) buildVMSpec(client *hvclient.HarvesterClient, ui packersd
 	}
 
 	return vm, nil
+}
+
+func appendCloudInitNoCloudDiskAndVolume(disks []hvclient.DiskTarget, volumes []hvclient.Volume, cfg *Config, vmName string) ([]hvclient.DiskTarget, []hvclient.Volume) {
+	metaData := cfg.CloudInitMetaData
+	if strings.TrimSpace(metaData) == "" {
+		metaData = fmt.Sprintf("instance-id: %s\nlocal-hostname: %s\n", vmName, vmName)
+	}
+
+	cloudInitName := "cloudinitdisk"
+	disks = append(disks, hvclient.DiskTarget{
+		Name: cloudInitName,
+		Disk: &hvclient.Disk{Bus: "virtio"},
+	})
+	volumes = append(volumes, hvclient.Volume{
+		Name: cloudInitName,
+		CloudInitNoCloud: &hvclient.CloudInitNoCloud{
+			UserData:    cfg.CloudInitUserData,
+			MetaData:    metaData,
+			NetworkData: cfg.CloudInitNetworkData,
+		},
+	})
+
+	return disks, volumes
 }
 
 // buildNetworkSpec returns the network and interface specs for the VM.

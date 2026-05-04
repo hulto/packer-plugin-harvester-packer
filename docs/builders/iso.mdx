@@ -99,6 +99,20 @@ the root disk as a `VirtualMachineImage`.
 - `http_port_min` / `http_port_max` (int) - Port range for the local HTTP server.
   Defaults to `8000`–`9000`.
 
+- `cloud_init_user_data` (string) - Cloud-init user-data content to attach as
+  a NoCloud drive. When set, the builder skips HTTP delivery and the guest reads
+  answer data from the attached NoCloud media.
+
+- `cloud_init_meta_data` (string) - Optional cloud-init meta-data content for
+  the NoCloud drive. When omitted, defaults are generated.
+
+- `cloud_init_network_data` (string) - Optional cloud-init network config
+  content for the NoCloud drive.
+
+When using `cloud_init_*` fields, `http_directory` and `{{.HTTPIP}}`/
+`{{.HTTPPort}}` boot-command templates must not be used in the same source
+definition.
+
 - `wait_for_instance_timeout` (duration string) - Maximum time to wait for the
   VM to reach Running state. Defaults to `"10m"`.
 
@@ -137,10 +151,23 @@ source "harvester-iso" "ubuntu" {
   boot_command = [
     "<enter><enter>",
     "<wait5>",
-    "autoinstall ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/<enter>",
+    "autoinstall<enter>",
   ]
 
-  http_directory = "./http"
+  cloud_init_user_data = <<-EOF
+  #cloud-config
+  autoinstall:
+    version: 1
+    identity:
+      hostname: ubuntu
+      username: ubuntu
+      password: "$6$rounds=4096$abcdefghijklmnop$abcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcdefghijklmnopqrstuv"
+  EOF
+
+  cloud_init_meta_data = <<-EOF
+  instance-id: ubuntu-autoinstall
+  local-hostname: ubuntu
+  EOF
 }
 
 build {

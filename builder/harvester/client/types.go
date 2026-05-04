@@ -73,9 +73,9 @@ type Domain struct {
 
 // Network spec.
 type Network struct {
-	Name        string       `json:"name"`
-	Pod         *PodNetwork  `json:"pod,omitempty"`
-	Multus      *MultusNet   `json:"multus,omitempty"`
+	Name   string      `json:"name"`
+	Pod    *PodNetwork `json:"pod,omitempty"`
+	Multus *MultusNet  `json:"multus,omitempty"`
 }
 
 // PodNetwork references the default pod network.
@@ -100,7 +100,9 @@ type PersistentVolumeClaimVolumeSource struct {
 
 // CloudInitNoCloud inlines cloud-init config.
 type CloudInitNoCloud struct {
-	UserData string `json:"userData,omitempty"`
+	UserData    string `json:"userData,omitempty"`
+	MetaData    string `json:"metaData,omitempty"`
+	NetworkData string `json:"networkData,omitempty"`
 }
 
 // ContainerDiskSource references a container image.
@@ -165,8 +167,8 @@ const (
 
 // VMIStatus describes VMI status.
 type VMIStatus struct {
-	Phase      VMIPhase `json:"phase,omitempty"`
-	NodeName   string   `json:"nodeName,omitempty"`
+	Phase      VMIPhase   `json:"phase,omitempty"`
+	NodeName   string     `json:"nodeName,omitempty"`
 	Interfaces []VMIIface `json:"interfaces,omitempty"`
 }
 
@@ -254,11 +256,11 @@ type VirtualMachineImageSource struct {
 
 // VirtualMachineImageSpec is the spec for a Harvester VirtualMachineImage.
 type VirtualMachineImageSpec struct {
-	DisplayName  string                    `json:"displayName,omitempty"`
-	SourceType   string                    `json:"sourceType,omitempty"`
-	URL          string                    `json:"url,omitempty"`
-	PVCName      string                    `json:"pvcName,omitempty"`
-	PVCNamespace string                    `json:"pvcNamespace,omitempty"`
+	DisplayName  string `json:"displayName,omitempty"`
+	SourceType   string `json:"sourceType,omitempty"`
+	URL          string `json:"url,omitempty"`
+	PVCName      string `json:"pvcName,omitempty"`
+	PVCNamespace string `json:"pvcNamespace,omitempty"`
 }
 
 // VirtualMachineImageStatus describes image status.

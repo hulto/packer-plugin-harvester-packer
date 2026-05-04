@@ -90,6 +90,10 @@ type FlatConfig struct {
 	HTTPDir                   *string           `mapstructure:"http_directory" cty:"http_directory" hcl:"http_directory"`
 	HTTPPortMin               *int              `mapstructure:"http_port_min" cty:"http_port_min" hcl:"http_port_min"`
 	HTTPPortMax               *int              `mapstructure:"http_port_max" cty:"http_port_max" hcl:"http_port_max"`
+	HTTPIP                    *string           `mapstructure:"http_ip" cty:"http_ip" hcl:"http_ip"`
+	CloudInitUserData         *string           `mapstructure:"cloud_init_user_data" cty:"cloud_init_user_data" hcl:"cloud_init_user_data"`
+	CloudInitMetaData         *string           `mapstructure:"cloud_init_meta_data" cty:"cloud_init_meta_data" hcl:"cloud_init_meta_data"`
+	CloudInitNetworkData      *string           `mapstructure:"cloud_init_network_data" cty:"cloud_init_network_data" hcl:"cloud_init_network_data"`
 	WaitForInstanceTimeout    *string           `mapstructure:"wait_for_instance_timeout" cty:"wait_for_instance_timeout" hcl:"wait_for_instance_timeout"`
 	ShutdownCommand           *string           `mapstructure:"shutdown_command" cty:"shutdown_command" hcl:"shutdown_command"`
 	ShutdownTimeout           *string           `mapstructure:"shutdown_timeout" cty:"shutdown_timeout" hcl:"shutdown_timeout"`
@@ -187,6 +191,10 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"http_directory":               &hcldec.AttrSpec{Name: "http_directory", Type: cty.String, Required: false},
 		"http_port_min":                &hcldec.AttrSpec{Name: "http_port_min", Type: cty.Number, Required: false},
 		"http_port_max":                &hcldec.AttrSpec{Name: "http_port_max", Type: cty.Number, Required: false},
+		"http_ip":                      &hcldec.AttrSpec{Name: "http_ip", Type: cty.String, Required: false},
+		"cloud_init_user_data":         &hcldec.AttrSpec{Name: "cloud_init_user_data", Type: cty.String, Required: false},
+		"cloud_init_meta_data":         &hcldec.AttrSpec{Name: "cloud_init_meta_data", Type: cty.String, Required: false},
+		"cloud_init_network_data":      &hcldec.AttrSpec{Name: "cloud_init_network_data", Type: cty.String, Required: false},
 		"wait_for_instance_timeout":    &hcldec.AttrSpec{Name: "wait_for_instance_timeout", Type: cty.String, Required: false},
 		"shutdown_command":             &hcldec.AttrSpec{Name: "shutdown_command", Type: cty.String, Required: false},
 		"shutdown_timeout":             &hcldec.AttrSpec{Name: "shutdown_timeout", Type: cty.String, Required: false},
