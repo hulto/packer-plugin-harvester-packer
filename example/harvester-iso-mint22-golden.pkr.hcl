@@ -58,24 +58,26 @@ source "harvester-iso" "mint22_golden" {
   # selects "Install Linux Mint" from the GRUB menu, then appends preseed
   # kernel parameters so the Debian installer runs fully unattended.
   #
-  # Packer's HTTP server (http_directory) serves preseed.cfg; the VM reaches
-  # it via the Harvester management network at http_ip = 10.52.1.111.
+  # /dev/sr0  = Mint installer ISO
+  # /dev/sr1  = our cidata ISO (cd_files below), label "PRSEED"
+  # Ubiquity mounts /dev/sr1 at /media/mint/PRSEED in the live session.
   boot_wait = "10s"
   boot_command = [
     # Move to the "Install Linux Mint" entry (second item in GRUB menu)
     "<down>",
     # Open GRUB edit mode for this entry
     "<tab>",
-    " automatic-ubiquity url=http://{{.HTTPIP}}:{{.HTTPPort}}/preseed.cfg",
+    " automatic-ubiquity file=/media/mint/PRSEED/preseed.cfg",
     " netcfg/get_hostname=mint-golden quiet",
     "<enter>",
   ]
 
-  # Serve preseed.cfg via Packer's built-in HTTP server.
-  # http_ip pins the bind address to the Harvester management NIC so the VM
-  # can reach it; the port is chosen from the default range (8000-9000).
-  http_directory = "${path.root}/http/mint-22"
-  http_ip        = "10.52.1.111"
+  # Auxiliary CD-ROM containing only the preseed file, labelled "PRSEED".
+  # Packer attaches this as /dev/sr1; udisks mounts it at /media/mint/PRSEED.
+  cd_label = "PRSEED"
+  cd_files = [
+    "${path.root}/http/mint-22/preseed.cfg",
+  ]
 }
 
 build {
