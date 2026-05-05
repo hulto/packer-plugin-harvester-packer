@@ -3,7 +3,11 @@
 
 package harvester
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/hashicorp/packer-plugin-sdk/multistep"
+)
 
 func TestAppendCloudInitNoCloudDiskAndVolume(t *testing.T) {
 	t.Run("applies_defaults_for_meta_data", func(t *testing.T) {
@@ -47,4 +51,26 @@ func TestAppendCloudInitNoCloudDiskAndVolume(t *testing.T) {
 			t.Fatalf("expected networkData %q, got %q", cfg.CloudInitNetworkData, got)
 		}
 	})
+}
+
+func TestTrackCleanupPVCName(t *testing.T) {
+	state := new(multistep.BasicStateBag)
+
+	trackCleanupPVCName(state, " pvc-one ")
+	trackCleanupPVCName(state, "")
+	trackCleanupPVCName(state, "pvc-one")
+	trackCleanupPVCName(state, "pvc-two")
+
+	got := trackedCleanupPVCNames(state)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 tracked PVCs, got %d (%v)", len(got), got)
+	}
+	if got[0] != "pvc-one" || got[1] != "pvc-two" {
+		t.Fatalf("unexpected tracked PVCs: %v", got)
+	}
+
+	got[0] = "mutated"
+	if again := trackedCleanupPVCNames(state); again[0] != "pvc-one" {
+		t.Fatalf("expected tracked PVCs to be returned as a copy, got %v", again)
+	}
 }

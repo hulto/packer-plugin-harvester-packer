@@ -137,7 +137,6 @@ func (s *StepCreateCDImage) createAndUploadCDImage(
 	return nil
 }
 
-
 // Cleanup removes temporary local artifacts and the imported CD image.
 func (s *StepCreateCDImage) Cleanup(state multistep.StateBag) {
 	ui := state.Get("ui").(packersdk.Ui)
@@ -155,11 +154,50 @@ func (s *StepCreateCDImage) Cleanup(state multistep.StateBag) {
 		}
 		seen[name] = true
 		ui.Say(fmt.Sprintf("Removing temporary auxiliary CD image %q...", name))
-		if err := client.DeleteVMImage(s.Config.Namespace, name); err != nil {
+		if err := deleteVMImageWithRetry(ui, client, s.Config.Namespace, name, 2*time.Minute); err != nil {
 			ui.Error(fmt.Sprintf("Warning: failed to delete temporary CD image %q: %s", name, err))
 		}
 	}
 
+}
+
+func deleteVMImageWithRetry(
+	ui packersdk.Ui,
+	client *hvclient.HarvesterClient,
+	namespace, name string,
+	timeout time.Duration,
+) error {
+	deadline := time.Now().Add(timeout)
+	loggedInUseWait := false
+
+	for {
+		err := client.DeleteVMImage(namespace, name)
+		switch {
+		case err == nil:
+			return nil
+		case hvclient.IsNotFoundError(err):
+			return nil
+		case isVMImageInUseError(err):
+			if time.Now().After(deadline) {
+				return err
+			}
+			if !loggedInUseWait {
+				ui.Say(fmt.Sprintf("Temporary CD image %q is still referenced by a volume; waiting for release before retrying deletion...", name))
+				loggedInUseWait = true
+			}
+			time.Sleep(5 * time.Second)
+		default:
+			return err
+		}
+	}
+}
+
+func isVMImageInUseError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "being used by volume")
 }
 
 func waitForVMImageInitialized(

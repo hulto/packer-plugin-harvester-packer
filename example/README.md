@@ -44,6 +44,13 @@ If you do not use `make`, run the equivalent commands manually:
 go build -ldflags="-X github.com/hashicorp/packer-plugin-scaffolding/version.Version=0.2.1 -X github.com/hashicorp/packer-plugin-scaffolding/version.VersionPrerelease=dev" -o packer-plugin-scaffolding
 packer plugins install --path packer-plugin-scaffolding github.com/hashicorp/scaffolding
 cd example/
+
+# Mint 22
+packer init harvester-iso-mint22-golden.pkr.hcl
+packer build -on-error=ask -var "kubeconfig=/persistent/workspaces/.kube/config" harvester-iso-mint22-golden.pkr.hcl
+
+
+# ubuntu 24
 packer init harvester-iso-ubuntu24-golden.pkr.hcl
 packer build -on-error=abort -var "kubeconfig=/persistent/workspaces/.kube/config" harvester-iso-ubuntu24-golden.pkr.hcl
 ```

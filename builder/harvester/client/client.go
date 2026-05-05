@@ -10,6 +10,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -24,11 +25,12 @@ import (
 )
 
 const (
+	coreAPIPath = "/api/v1"
 	// API group paths.
-	kubevirtAPIPath    = "/apis/kubevirt.io/v1"
-	subresourcesPath   = "/apis/subresources.kubevirt.io/v1"
-	harvesterAPIPath   = "/apis/harvesterhci.io/v1beta1"
-	cdiAPIPath         = "/apis/cdi.kubevirt.io/v1beta1"
+	kubevirtAPIPath  = "/apis/kubevirt.io/v1"
+	subresourcesPath = "/apis/subresources.kubevirt.io/v1"
+	harvesterAPIPath = "/apis/harvesterhci.io/v1beta1"
+	cdiAPIPath       = "/apis/cdi.kubevirt.io/v1beta1"
 
 	// StorageClass used by Harvester Longhorn.
 	DefaultStorageClass = "harvester-longhorn"
@@ -322,6 +324,58 @@ func (c *HarvesterClient) DeleteVM(name string) error {
 	return nil
 }
 
+// WaitForVMDeleted polls until the VirtualMachine (and its VMI) no longer
+// exist, or until timeout is reached.  This must complete before deleting any
+// images that were attached as volumes, because Harvester's admission webhook
+// rejects image deletion while a dependent PVC/volume still exists.
+func (c *HarvesterClient) WaitForVMDeleted(name string, timeout time.Duration) error {
+	return c.waitForDeleted(func() error {
+		_, err := c.GetVM(name)
+		return err
+	}, fmt.Sprintf("VM %q", name), timeout, 5*time.Second)
+}
+
+// pvcPath returns the API path for PVCs.
+func (c *HarvesterClient) pvcPath(namespace, name string) string {
+	if namespace == "" {
+		namespace = c.namespace
+	}
+	if name == "" {
+		return fmt.Sprintf("%s/namespaces/%s/persistentvolumeclaims", coreAPIPath, namespace)
+	}
+	return fmt.Sprintf("%s/namespaces/%s/persistentvolumeclaims/%s", coreAPIPath, namespace, name)
+}
+
+// GetPersistentVolumeClaim retrieves a PVC by namespace/name.
+func (c *HarvesterClient) GetPersistentVolumeClaim(namespace, name string) (*PersistentVolumeClaim, error) {
+	body, _, err := c.request(http.MethodGet, c.pvcPath(namespace, name), nil)
+	if err != nil {
+		return nil, fmt.Errorf("get PersistentVolumeClaim %s/%s: %w", namespace, name, err)
+	}
+	var pvc PersistentVolumeClaim
+	if err := json.Unmarshal(body, &pvc); err != nil {
+		return nil, fmt.Errorf("unmarshal PersistentVolumeClaim: %w", err)
+	}
+	return &pvc, nil
+}
+
+// DeletePersistentVolumeClaim deletes a PVC by namespace/name.
+func (c *HarvesterClient) DeletePersistentVolumeClaim(namespace, name string) error {
+	_, _, err := c.request(http.MethodDelete, c.pvcPath(namespace, name), nil)
+	if err != nil {
+		return fmt.Errorf("delete PersistentVolumeClaim %s/%s: %w", namespace, name, err)
+	}
+	return nil
+}
+
+// WaitForPersistentVolumeClaimDeleted polls until the PVC no longer exists.
+func (c *HarvesterClient) WaitForPersistentVolumeClaimDeleted(namespace, name string, timeout time.Duration) error {
+	return c.waitForDeleted(func() error {
+		_, err := c.GetPersistentVolumeClaim(namespace, name)
+		return err
+	}, fmt.Sprintf("PersistentVolumeClaim %q", name), timeout, 5*time.Second)
+}
+
 // --- VirtualMachineInstance operations ---
 
 // vmiPath returns the API path for VMIs.
@@ -566,4 +620,29 @@ func (c *HarvesterClient) GetVMImageByDisplayName(namespace, displayName string)
 		}
 	}
 	return nil, fmt.Errorf("image %q not found in namespace %s", displayName, namespace)
+}
+
+func (c *HarvesterClient) waitForDeleted(getter func() error, resource string, timeout, interval time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		err := getter()
+		switch {
+		case err == nil:
+			time.Sleep(interval)
+		case IsNotFoundError(err):
+			return nil
+		default:
+			return err
+		}
+	}
+	return fmt.Errorf("timeout waiting for %s to be deleted", resource)
+}
+
+// IsNotFoundError reports whether err wraps a Kubernetes-style not found response.
+func IsNotFoundError(err error) bool {
+	var statusErr *StatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	return statusErr.Code == http.StatusNotFound || strings.EqualFold(statusErr.Reason, "NotFound")
 }

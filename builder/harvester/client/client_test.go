@@ -12,6 +12,8 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -212,3 +214,48 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
+func TestWaitForVMDeletedReturnsNotFoundAsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"virtualmachines.kubevirt.io \"vm-1\" not found","reason":"NotFound","code":404}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "default", "", true)
+	if err := client.WaitForVMDeleted("vm-1", 50*time.Millisecond); err != nil {
+		t.Fatalf("expected not found to be treated as success, got %v", err)
+	}
+}
+
+func TestWaitForVMDeletedReturnsNonNotFoundErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"internal server error","reason":"InternalError","code":500}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "default", "", true)
+	err := client.WaitForVMDeleted("vm-1", 50*time.Millisecond)
+	if err == nil {
+		t.Fatal("expected non-not-found error")
+	}
+	if got := err.Error(); got != "get VM vm-1: internal server error" {
+		t.Fatalf("unexpected error %q", got)
+	}
+}
+
+func TestWaitForPersistentVolumeClaimDeletedReturnsNotFoundAsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"persistentvolumeclaims \"pvc-1\" not found","reason":"NotFound","code":404}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "default", "", true)
+	if err := client.WaitForPersistentVolumeClaimDeleted("default", "pvc-1", 50*time.Millisecond); err != nil {
+		t.Fatalf("expected not found to be treated as success, got %v", err)
+	}
+}

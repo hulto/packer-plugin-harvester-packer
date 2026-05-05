@@ -29,6 +29,8 @@ type StepCreateVM struct {
 	vmName string
 }
 
+const cleanupAuxCDPVCNamesStateKey = "cleanup_aux_cd_pvc_names"
+
 // Run creates the Harvester VirtualMachine.
 func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packersdk.Ui)
@@ -62,8 +64,10 @@ func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multiste
 	return multistep.ActionContinue
 }
 
-// Cleanup removes the VM.
-// This always runs at build end regardless of success, failure or cancellation.
+// Cleanup removes the VM and waits for it to be fully deleted before
+// returning.  Waiting is required so that the PVCs backed by attached CD
+// images are gone by the time StepCreateCDImage.Cleanup tries to delete those
+// images — Harvester's admission webhook rejects the image deletion otherwise.
 func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	if s.vmName == "" {
 		return
@@ -75,6 +79,21 @@ func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	ui.Say(fmt.Sprintf("Cleaning up VM %q...", s.vmName))
 	if err := client.DeleteVM(s.vmName); err != nil {
 		ui.Error(fmt.Sprintf("Warning: failed to delete VM %q: %s", s.vmName, err))
+	}
+
+	ui.Say(fmt.Sprintf("Waiting for VM %q to be fully deleted...", s.vmName))
+	if err := client.WaitForVMDeleted(s.vmName, 5*time.Minute); err != nil {
+		ui.Error(fmt.Sprintf("Warning: %s — CD image cleanup may fail", err))
+	}
+
+	for _, pvcName := range trackedCleanupPVCNames(state) {
+		if err := client.DeletePersistentVolumeClaim(s.Config.Namespace, pvcName); err != nil && !hvclient.IsNotFoundError(err) {
+			ui.Error(fmt.Sprintf("Warning: failed to delete auxiliary CD volume claim %q: %s", pvcName, err))
+		}
+		ui.Say(fmt.Sprintf("Waiting for auxiliary CD volume claim %q to be fully deleted...", pvcName))
+		if err := client.WaitForPersistentVolumeClaimDeleted(s.Config.Namespace, pvcName, 2*time.Minute); err != nil {
+			ui.Error(fmt.Sprintf("Warning: %s — CD image cleanup may fail", err))
+		}
 	}
 }
 
@@ -174,6 +193,7 @@ func (s *StepCreateVM) buildVMSpec(state multistep.StateBag, client *hvclient.Ha
 				volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
 					auxCDPVCName, auxCDDiskSize, auxCDStorageClass, auxCDImageID, cfg.Namespace,
 				))
+				trackCleanupPVCName(state, auxCDPVCName)
 				disks = append(disks, hvclient.DiskTarget{
 					Name:  "cdrom-1",
 					CDRom: &hvclient.CDRom{Bus: "sata"},
@@ -300,6 +320,32 @@ func appendCloudInitNoCloudDiskAndVolume(disks []hvclient.DiskTarget, volumes []
 	})
 
 	return disks, volumes
+}
+
+func trackCleanupPVCName(state multistep.StateBag, name string) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	names := trackedCleanupPVCNames(state)
+	for _, existing := range names {
+		if existing == name {
+			return
+		}
+	}
+	state.Put(cleanupAuxCDPVCNamesStateKey, append(names, name))
+}
+
+func trackedCleanupPVCNames(state multistep.StateBag) []string {
+	raw, ok := state.GetOk(cleanupAuxCDPVCNamesStateKey)
+	if !ok {
+		return nil
+	}
+	names, ok := raw.([]string)
+	if !ok {
+		return nil
+	}
+	return append([]string(nil), names...)
 }
 
 // buildNetworkSpec returns the network and interface specs for the VM.

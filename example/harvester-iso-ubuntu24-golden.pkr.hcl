@@ -50,7 +50,7 @@ source "harvester-iso" "ubuntu24_golden" {
   communicator = "ssh"
   ssh_username = "ubuntu"
   ssh_password = "ubuntu"
-  ssh_timeout  = "30m"
+  ssh_timeout  = "90m"
 
   # Ubuntu 24 Server autoinstall via the auxiliary NoCloud ISO on /dev/sr1.
   # /dev/sr0 is the Ubuntu installer ISO; /dev/sr1 is our cidata ISO (cd_files).
