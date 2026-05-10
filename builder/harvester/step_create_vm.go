@@ -77,6 +77,9 @@ func (s *StepCreateVM) Cleanup(state multistep.StateBag) {
 	client := state.Get("client").(*hvclient.HarvesterClient)
 
 	ui.Say(fmt.Sprintf("Cleaning up VM %q...", s.vmName))
+	if err := client.ForceStopVM(s.vmName); err != nil {
+		ui.Error(fmt.Sprintf("Warning: failed to force-stop VM %q: %s", s.vmName, err))
+	}
 	if err := client.DeleteVM(s.vmName); err != nil {
 		ui.Error(fmt.Sprintf("Warning: failed to delete VM %q: %s", s.vmName, err))
 	}

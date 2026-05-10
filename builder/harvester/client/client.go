@@ -315,6 +315,18 @@ func (c *HarvesterClient) StopVM(name string) error {
 	return nil
 }
 
+// ForceStopVM powers off the VM immediately without waiting for guest shutdown.
+func (c *HarvesterClient) ForceStopVM(name string) error {
+	path := fmt.Sprintf("%s/namespaces/%s/virtualmachines/%s/stop",
+		subresourcesPath, c.namespace, name)
+	body := map[string]interface{}{"gracePeriod": 0}
+	_, _, err := c.requestWithAccept(http.MethodPut, path, body, "*/*")
+	if err != nil {
+		return fmt.Errorf("force stop VM %s: %w", name, err)
+	}
+	return nil
+}
+
 // DeleteVM deletes a VirtualMachine.
 func (c *HarvesterClient) DeleteVM(name string) error {
 	_, _, err := c.request(http.MethodDelete, c.vmPath(name), nil)

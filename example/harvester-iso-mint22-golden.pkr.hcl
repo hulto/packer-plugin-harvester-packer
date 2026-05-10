@@ -67,8 +67,8 @@ source "harvester-iso" "mint22_golden" {
     "<down>",
     # Open GRUB edit mode for this entry
     "<tab>",
-    " automatic-ubiquity file=/media/mint/PRSEED/preseed.cfg",
-    " netcfg/get_hostname=mint-golden quiet",
+    " automatic-ubiquity preseed/early_command=\"mkdir -p /media/mint/PRSEED && mount /dev/sr1 /media/mint/PRSEED\"",
+    " file=/media/mint/PRSEED/preseed.cfg netcfg/get_hostname=mint-golden quiet",
     "<enter>",
   ]
 
