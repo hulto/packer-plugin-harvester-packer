@@ -13,7 +13,10 @@ A full guide to creating Packer plugins can be found at [Extending Packer](https
 
 In this repository you will also find a pre-defined GitHub Action configuration for the release workflow
 (`.goreleaser.yml` and `.github/workflows/release.yml`). The release workflow configuration makes sure the GitHub
-release artifacts are created with the correct binaries and naming conventions.
+release artifacts are created with the correct binaries and naming conventions. On version tags (`v*`), the workflow
+publishes:
+- release assets to GitHub Releases (via GoReleaser)
+- a release artifact bundle to GitHub Packages (GHCR) at `ghcr.io/<owner>/<repo>:<tag>` (and `:latest` for stable tags)
 
 Please see the [GitHub template repository documentation](https://docs.github.com/en/free-pro-team@latest/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template)
 for how to create a new repository from this template on GitHub.

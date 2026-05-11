@@ -16,7 +16,7 @@ on:
       - 'v*'
 permissions:
   contents: write
-  packages: read
+  packages: write
 jobs:
   get-go-version:
     runs-on: ubuntu-latest
@@ -60,3 +60,40 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_VERSION: ${{ steps.plugin_describe.outputs.api_version }}
+      - name: Install ORAS
+        run: |
+          go install oras.land/oras/cmd/oras@v1.2.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Publish release bundle to GitHub Packages (GHCR)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          REPO="$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')"
+          PACKAGE="ghcr.io/${OWNER}/${REPO}"
+          BUNDLE="dist/${REPO}_${GITHUB_REF_NAME}_artifacts.tar.gz"
+
+          shopt -s nullglob
+          ZIP_FILES=(dist/*.zip)
+          CHECKSUM_FILES=(dist/*_SHA256SUMS*)
+          if [[ ${#ZIP_FILES[@]} -eq 0 || ${#CHECKSUM_FILES[@]} -eq 0 ]]; then
+            echo "Error: Expected GoReleaser artifacts not found in dist/. Found ${#ZIP_FILES[@]} ZIP files and ${#CHECKSUM_FILES[@]} checksum files. Ensure GoReleaser completed successfully."
+            exit 1
+          fi
+
+          FILES=()
+          for file in "${ZIP_FILES[@]}" "${CHECKSUM_FILES[@]}"; do
+            FILES+=("${file#dist/}")
+          done
+
+          tar -czf "${BUNDLE}" -C dist "${FILES[@]}"
+
+          echo "${GITHUB_TOKEN}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+          oras push "${PACKAGE}:${GITHUB_REF_NAME}" \
+            --artifact-type application/vnd.hashicorp.packer.plugin.release.v1+tar \
+            "${BUNDLE}:application/vnd.hashicorp.packer.plugin.release.layer.v1.tar+gzip"
+
+          if [[ "${GITHUB_REF_NAME}" != *"-"* ]]; then
+            oras copy "${PACKAGE}:${GITHUB_REF_NAME}" "${PACKAGE}:latest"
+          fi
