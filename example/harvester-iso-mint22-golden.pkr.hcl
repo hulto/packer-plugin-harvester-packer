@@ -13,7 +13,7 @@
 packer {
   required_plugins {
     harvester = {
-      source  = "github.com/hashicorp/scaffolding"
+      source  = "github.com/hulto/harvester"
       version = ">= 0.2.0"
     }
   }

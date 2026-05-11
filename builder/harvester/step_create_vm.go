@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/multistep"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 
-	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
+	hvclient "github.com/hulto/packer-plugin-harvester/builder/harvester/client"
 )
 
 // StepCreateVM creates the temporary build VM in Harvester.

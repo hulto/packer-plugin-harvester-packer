@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
+	hvclient "github.com/hulto/packer-plugin-harvester/builder/harvester/client"
 )
 
 // TestConfigPrepare_ISO tests validation of the ISO builder configuration.

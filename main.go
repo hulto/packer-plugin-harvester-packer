@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"os"
 
-	harvesterBuilder "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester"
-	"github.com/hashicorp/packer-plugin-scaffolding/builder/scaffolding"
-	scaffoldingData "github.com/hashicorp/packer-plugin-scaffolding/datasource/scaffolding"
-	scaffoldingPP "github.com/hashicorp/packer-plugin-scaffolding/post-processor/scaffolding"
-	scaffoldingProv "github.com/hashicorp/packer-plugin-scaffolding/provisioner/scaffolding"
-	scaffoldingVersion "github.com/hashicorp/packer-plugin-scaffolding/version"
+	harvesterBuilder "github.com/hulto/packer-plugin-harvester/builder/harvester"
+	"github.com/hulto/packer-plugin-harvester/builder/scaffolding"
+	scaffoldingData "github.com/hulto/packer-plugin-harvester/datasource/scaffolding"
+	scaffoldingPP "github.com/hulto/packer-plugin-harvester/post-processor/scaffolding"
+	scaffoldingProv "github.com/hulto/packer-plugin-harvester/provisioner/scaffolding"
+	scaffoldingVersion "github.com/hulto/packer-plugin-harvester/version"
 
 	"github.com/hashicorp/packer-plugin-sdk/plugin"
 )

@@ -13,7 +13,7 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/multistep/commonsteps"
 	"github.com/hashicorp/packer-plugin-sdk/packer"
 
-	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
+	hvclient "github.com/hulto/packer-plugin-harvester/builder/harvester/client"
 )
 
 // ISOBuilder builds a Harvester VM image from an installation ISO.

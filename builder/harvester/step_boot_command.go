@@ -20,7 +20,7 @@ import (
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 	"github.com/hashicorp/packer-plugin-sdk/template/interpolate"
 
-	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
+	hvclient "github.com/hulto/packer-plugin-harvester/builder/harvester/client"
 )
 
 // StepBootCommand sends keyboard input to a VM via the KubeVirt VNC WebSocket

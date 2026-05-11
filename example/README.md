@@ -41,8 +41,8 @@ make dev
 If you do not use `make`, run the equivalent commands manually:
 
 ```sh
-go build -ldflags="-X github.com/hashicorp/packer-plugin-scaffolding/version.Version=0.2.1 -X github.com/hashicorp/packer-plugin-scaffolding/version.VersionPrerelease=dev" -o packer-plugin-scaffolding
-packer plugins install --path packer-plugin-scaffolding github.com/hashicorp/scaffolding
+go build -ldflags="-X github.com/hulto/packer-plugin-harvester/version.Version=0.2.1 -X github.com/hulto/packer-plugin-harvester/version.VersionPrerelease=dev" -o packer-plugin-harvester
+packer plugins install --path packer-plugin-harvester github.com/hulto/harvester
 cd example/
 
 # Mint 22

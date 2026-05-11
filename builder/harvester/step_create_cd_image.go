@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/packer-plugin-sdk/multistep/commonsteps"
 	packersdk "github.com/hashicorp/packer-plugin-sdk/packer"
 
-	hvclient "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester/client"
+	hvclient "github.com/hulto/packer-plugin-harvester/builder/harvester/client"
 )
 
 // StepCreateCDImage builds an auxiliary ISO from cd_files/cd_content and
