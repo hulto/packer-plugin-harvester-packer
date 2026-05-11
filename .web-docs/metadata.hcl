@@ -1,13 +1,13 @@
 # Copyright (c) HashiCorp, Inc.
 # SPDX-License-Identifier: MPL-2.0
 
-# Details on using this Integration template can be found at https://github.com/hashicorp/integration-template
+# Details on integration metadata can be found at https://developer.hashicorp.com/packer/docs/plugins/creation
 # This metadata.hcl file and the adjacent `components` docs directory should
 # be kept in a `.web-docs` directory at the root of your plugin repository.
 integration {
-  name = "Integration Template"
-  description = "This is an integration template"
-  identifier = "packer/hashicorp/scaffolding"
+  name = "Harvester"
+  description = "Build and clone virtual machine images in Harvester with Packer"
+  identifier = "packer/hulto/harvester"
   flags = [
     # Remove if the plugin does not conform to the HCP Packer requirements.
     #
@@ -31,30 +31,35 @@ integration {
     # repository to the correct location.
     readme_location = "./README.md"
     # `external_url` allows us to link back to your plugin repo.
-    external_url = "https://github.com/hashicorp/integration-template"
+    external_url = "https://github.com/hulto/packer-plugin-harvester"
   }
   license {
     type = "MPL-2.0"
-    url = "https://github.com/hashicorp/integration-template/blob/main/LICENSE.md"
+    url = "https://github.com/hulto/packer-plugin-harvester/blob/main/LICENSE"
   }
   component {
     type = "builder"
-    name = "Component Name (e.g HappyCloud EBS)"
-    slug = "name"
+    name = "Harvester Clone Builder"
+    slug = "clone"
+  }
+  component {
+    type = "builder"
+    name = "Harvester ISO Builder"
+    slug = "iso"
   }
   component {
     type = "provisioner"
-    name = "Component Name (e.g HappyCloud Shell)"
-    slug = "name"
+    name = "Template Provisioner"
+    slug = "provisioner"
   }
   component {
     type = "post-processor"
-    name = "Component Name"
-    slug = "name"
+    name = "Template Post-Processor"
+    slug = "post-processor"
   }
   component {
     type = "data-source"
-    name = "Component Name"
-    slug = "name"
+    name = "Template Data Source"
+    slug = "datasource"
   }
 }

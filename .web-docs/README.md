@@ -14,9 +14,9 @@ To install this plugin, copy and paste this code into your Packer configuration,
 ```hcl
 packer {
   required_plugins {
-    name = {
+    harvester = {
       # source represents the GitHub URI to the plugin repository without the `packer-plugin-` prefix.
-      source  = "github.com/organization/name"
+      source  = "github.com/hulto/harvester"
       version = ">=0.0.1"
     }
   }
@@ -26,30 +26,27 @@ packer {
 Alternatively, you can use `packer plugins install` to manage installation of this plugin.
 
 ```sh
-$ packer plugins install github.com/organization/plugin-name
+$ packer plugins install github.com/hulto/harvester
 ```
 
 ### Components
 
-The Scaffolding plugin is intended as a starting point for creating Packer plugins
+The Harvester plugin provides builders for creating and cloning VM images on Harvester.
 
 #### Builders
 
-- [builder](/packer/integrations/hashicorp/scaffolding/latest/components/builder/builder-name) - The scaffolding builder is used to create endless Packer
-  plugins using a consistent plugin structure.
+- [clone](/packer/integrations/hulto/harvester/latest/components/builder/clone) - Creates a new image by cloning an existing Harvester VM template.
+- [iso](/packer/integrations/hulto/harvester/latest/components/builder/iso) - Installs an image from ISO media and exports it as a Harvester image.
 
 #### Provisioners
 
-- [provisioner](/packer/integrations/hashicorp/scaffolding/latest/components/provisioner/provisioner-name) - The scaffolding provisioner is used to provisioner
-  Packer builds.
+- [provisioner](/packer/integrations/hulto/harvester/latest/components/provisioner/provisioner) - Template provisioner component for Packer builds.
 
 #### Post-processors
 
-- [post-processor](/packer/integrations/hashicorp/scaffolding/latest/components/post-processor/postprocessor-name) - The scaffolding post-processor is used to
-  export scaffolding builds.
+- [post-processor](/packer/integrations/hulto/harvester/latest/components/post-processor/post-processor) - Template post-processor component.
 
 #### Data Sources
 
-- [data source](/packer/integrations/hashicorp/scaffolding/latest/components/datasource/datasource-name) - The scaffolding data source is used to
-  export scaffolding data.
+- [data source](/packer/integrations/hulto/harvester/latest/components/data-source/datasource) - Template data source component.
 
