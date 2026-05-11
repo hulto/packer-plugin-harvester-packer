@@ -35,18 +35,18 @@ The Harvester plugin provides builders for creating and cloning VM images on Har
 
 #### Builders
 
-- [clone](/packer/integrations/hulto/harvester/latest/components/builder/clone) - Creates a new image by cloning an existing Harvester VM template.
-- [iso](/packer/integrations/hulto/harvester/latest/components/builder/iso) - Installs an image from ISO media and exports it as a Harvester image.
+- [clone](/packer/integrations/hashicorp/harvester/latest/components/builder/clone) - Creates a new image by cloning an existing Harvester VM template.
+- [iso](/packer/integrations/hashicorp/harvester/latest/components/builder/iso) - Installs an image from ISO media and exports it as a Harvester image.
 
 #### Provisioners
 
-- [provisioner](/packer/integrations/hulto/harvester/latest/components/provisioner/provisioner) - Template provisioner component for Packer builds.
+- [provisioner](/packer/integrations/hashicorp/harvester/latest/components/provisioner/provisioner) - Template provisioner component for Packer builds.
 
 #### Post-processors
 
-- [post-processor](/packer/integrations/hulto/harvester/latest/components/post-processor/post-processor) - Template post-processor component.
+- [post-processor](/packer/integrations/hashicorp/harvester/latest/components/post-processor/post-processor) - Template post-processor component.
 
 #### Data Sources
 
-- [data source](/packer/integrations/hulto/harvester/latest/components/data-source/datasource) - Template data source component.
+- [data source](/packer/integrations/hashicorp/harvester/latest/components/data-source/datasource) - Template data source component.
 

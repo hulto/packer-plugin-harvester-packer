@@ -7,7 +7,7 @@
 integration {
   name = "Harvester"
   description = "Build and clone virtual machine images in Harvester with Packer"
-  identifier = "packer/hulto/harvester"
+  identifier = "packer/hashicorp/harvester"
   flags = [
     # Remove if the plugin does not conform to the HCP Packer requirements.
     #
