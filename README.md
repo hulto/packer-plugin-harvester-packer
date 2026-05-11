@@ -3,14 +3,10 @@
 This repository contains a Packer multi-component plugin for Harvester. It includes:
 - A Harvester ISO builder ([builder/harvester](builder/harvester))
 - A Harvester clone builder ([builder/harvester](builder/harvester))
-- A template builder ([builder/scaffolding](builder/scaffolding))
-- A template provisioner ([provisioner/scaffolding](provisioner/scaffolding))
-- A template post-processor ([post-processor/scaffolding](post-processor/scaffolding))
-- A template data source ([datasource/scaffolding](datasource/scaffolding))
 - Docs ([docs](docs))
 - A working example ([example](example))
 
-These folders contain the Harvester implementation and template components.
+These folders contain the Harvester implementation.
 A full guide to creating Packer plugins can be found at [Extending Packer](https://www.packer.io/docs/plugins/creation).
 
 In this repository you will also find a pre-defined GitHub Action configuration for the release workflow
