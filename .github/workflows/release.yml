@@ -16,7 +16,7 @@ on:
       - 'v*'
 permissions:
   contents: write
-  packages: read
+  packages: write
 jobs:
   get-go-version:
     runs-on: ubuntu-latest
@@ -60,3 +60,26 @@ jobs:
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_VERSION: ${{ steps.plugin_describe.outputs.api_version }}
+      - name: Install ORAS
+        run: |
+          go install oras.land/oras/cmd/oras@v1.2.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Publish release bundle to GitHub Packages (GHCR)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          REPO="$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')"
+          PACKAGE="ghcr.io/${OWNER}/${REPO}"
+          BUNDLE="dist/${REPO}_${GITHUB_REF_NAME}_artifacts.tar.gz"
+
+          tar -czf "${BUNDLE}" dist/*.zip dist/*_SHA256SUMS*
+
+          echo "${GITHUB_TOKEN}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+          oras push "${PACKAGE}:${GITHUB_REF_NAME}" \
+            --artifact-type application/vnd.hashicorp.packer.plugin.release.v1+tar \
+            "${BUNDLE}:application/vnd.hashicorp.packer.plugin.release.layer.v1.tar+gzip"
+
+          if [[ "${GITHUB_REF_NAME}" != *"-"* ]]; then
+            oras copy "${PACKAGE}:${GITHUB_REF_NAME}" "${PACKAGE}:latest"
+          fi
