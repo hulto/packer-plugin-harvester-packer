@@ -81,7 +81,12 @@ jobs:
             exit 1
           fi
 
-          tar -czf "${BUNDLE}" "${ZIP_FILES[@]}" "${CHECKSUM_FILES[@]}"
+          FILES=()
+          for file in "${ZIP_FILES[@]}" "${CHECKSUM_FILES[@]}"; do
+            FILES+=("${file#dist/}")
+          done
+
+          tar -czf "${BUNDLE}" -C dist "${FILES[@]}"
 
           echo "${GITHUB_TOKEN}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
           oras push "${PACKAGE}:${GITHUB_REF_NAME}" \
