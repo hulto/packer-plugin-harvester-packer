@@ -73,7 +73,15 @@ jobs:
           PACKAGE="ghcr.io/${OWNER}/${REPO}"
           BUNDLE="dist/${REPO}_${GITHUB_REF_NAME}_artifacts.tar.gz"
 
-          tar -czf "${BUNDLE}" dist/*.zip dist/*_SHA256SUMS*
+          shopt -s nullglob
+          ZIP_FILES=(dist/*.zip)
+          CHECKSUM_FILES=(dist/*_SHA256SUMS*)
+          if [[ ${#ZIP_FILES[@]} -eq 0 || ${#CHECKSUM_FILES[@]} -eq 0 ]]; then
+            echo "Expected release zip/checksum artifacts were not found in dist/"
+            exit 1
+          fi
+
+          tar -czf "${BUNDLE}" "${ZIP_FILES[@]}" "${CHECKSUM_FILES[@]}"
 
           echo "${GITHUB_TOKEN}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
           oras push "${PACKAGE}:${GITHUB_REF_NAME}" \
