@@ -78,7 +78,7 @@ jobs:
           ZIP_FILES=(dist/*.zip)
           CHECKSUM_FILES=(dist/*_SHA256SUMS*)
           if [[ ${#ZIP_FILES[@]} -eq 0 || ${#CHECKSUM_FILES[@]} -eq 0 ]]; then
-            echo "Error: Expected GoReleaser artifacts not found in dist/. Found ZIP_FILES=${#ZIP_FILES[@]} and CHECKSUM_FILES=${#CHECKSUM_FILES[@]}. Ensure GoReleaser completed successfully."
+            echo "Error: Expected GoReleaser artifacts not found in dist/. Found ${#ZIP_FILES[@]} ZIP files and ${#CHECKSUM_FILES[@]} checksum files. Ensure GoReleaser completed successfully."
             exit 1
           fi
 
