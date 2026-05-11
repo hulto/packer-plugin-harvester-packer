@@ -77,7 +77,7 @@ jobs:
           ZIP_FILES=(dist/*.zip)
           CHECKSUM_FILES=(dist/*_SHA256SUMS*)
           if [[ ${#ZIP_FILES[@]} -eq 0 || ${#CHECKSUM_FILES[@]} -eq 0 ]]; then
-            echo "Expected release zip/checksum artifacts were not found in dist/"
+            echo "Expected release artifacts were not found in dist/: ZIP_FILES=${#ZIP_FILES[@]}, CHECKSUM_FILES=${#CHECKSUM_FILES[@]}"
             exit 1
           fi
 
