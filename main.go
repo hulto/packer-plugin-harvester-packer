@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	harvesterBuilder "github.com/hashicorp/packer-plugin-scaffolding/builder/harvester"
 	"github.com/hashicorp/packer-plugin-scaffolding/builder/scaffolding"
 	scaffoldingData "github.com/hashicorp/packer-plugin-scaffolding/datasource/scaffolding"
 	scaffoldingPP "github.com/hashicorp/packer-plugin-scaffolding/post-processor/scaffolding"
@@ -19,6 +20,8 @@ import (
 func main() {
 	pps := plugin.NewSet()
 	pps.RegisterBuilder("my-builder", new(scaffolding.Builder))
+	pps.RegisterBuilder("iso", new(harvesterBuilder.ISOBuilder))
+	pps.RegisterBuilder("clone", new(harvesterBuilder.CloneBuilder))
 	pps.RegisterProvisioner("my-provisioner", new(scaffoldingProv.Provisioner))
 	pps.RegisterPostProcessor("my-post-processor", new(scaffoldingPP.PostProcessor))
 	pps.RegisterDatasource("my-datasource", new(scaffoldingData.Datasource))

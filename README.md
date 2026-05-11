@@ -35,7 +35,7 @@ Looking at their code will give you good examples.
 
 2. Run this command from the root directory: 
 ```shell 
-go build -ldflags="-X github.com/hashicorp/packer-plugin-scaffolding/version.VersionPrerelease=dev" -o packer-plugin-scaffolding
+go build -ldflags="-X github.com/hashicorp/packer-plugin-scaffolding/version.Version=0.2.1 -X github.com/hashicorp/packer-plugin-scaffolding/version.VersionPrerelease=dev" -o packer-plugin-scaffolding
 ```
 
 3. After you successfully compile, the `packer-plugin-scaffolding` plugin binary file is in the root directory. 
@@ -46,7 +46,8 @@ packer plugins install --path packer-plugin-scaffolding github.com/hashicorp/sca
 ```
 
 ### Build on *nix systems
-Unix like systems with the make, sed, and grep commands installed can use the `make dev` to execute the build from source steps. 
+Unix like systems with the make, sed, and grep commands installed can use `make dev` to execute the build from source steps.
+This builds a semver-compatible dev binary and installs it locally so it can satisfy version constraints such as `>= 0.2.0` in example templates.
 
 ### Build on Windows Powershell
 The preferred solution for building on Windows are steps 2-4 listed above.
@@ -56,6 +57,13 @@ If you would prefer to script the building process you can use the following as 
 $MODULE_NAME = (Get-Content go.mod | Where-Object { $_ -match "^module"  }) -replace 'module ',''
 $FQN = $MODULE_NAME -replace 'packer-plugin-',''
 go build -ldflags="-X $MODULE_NAME/version.VersionPrerelease=dev" -o packer-plugin-scaffolding.exe
+packer plugins install --path packer-plugin-scaffolding.exe $FQN
+```
+
+To mirror `make dev`, include the base version as well:
+
+```powershell
+go build -ldflags="-X $MODULE_NAME/version.Version=0.2.1 -X $MODULE_NAME/version.VersionPrerelease=dev" -o packer-plugin-scaffolding.exe
 packer plugins install --path packer-plugin-scaffolding.exe $FQN
 ```
 

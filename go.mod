@@ -3,9 +3,11 @@ module github.com/hashicorp/packer-plugin-scaffolding
 go 1.24.12
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.19.1
 	github.com/hashicorp/packer-plugin-sdk v0.6.1
 	github.com/zclconf/go-cty v1.13.3
+	gopkg.in/yaml.v2 v2.3.0
 )
 
 require (
@@ -104,7 +106,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
 
 replace github.com/zclconf/go-cty => github.com/nywilken/go-cty v1.13.3 // added by packer-sdc fix as noted in github.com/hashicorp/packer-plugin-sdk/issues/187
