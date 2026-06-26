@@ -54,8 +54,8 @@ func (b *ISOBuilder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (p
 		},
 		&StepCreateCDImage{Config: &b.config},
 		&StepCreateVM{Config: &b.config},
-		&StepBootCommand{Config: &b.config},
 		&StepWaitForInstance{Config: &b.config},
+		&StepBootCommand{Config: &b.config},
 		&communicator.StepConnect{
 			Config:    &b.config.Config,
 			Host:      communicatorHost(b.config.Config),

@@ -46,11 +46,7 @@ source "harvester-iso" "ubuntu24_golden" {
   output_image_name      = "ubuntu-24-golden"
   output_image_namespace = "harvester-public"
 
-  # SSH communicator (credentials created by autoinstall user-data)
-  communicator = "ssh"
-  ssh_username = "ubuntu"
-  ssh_password = "ubuntu"
-  ssh_timeout  = "90m"
+  communicator = "none"
 
   # Ubuntu 24 Server autoinstall via the auxiliary NoCloud ISO on /dev/sr1.
   # /dev/sr0 is the Ubuntu installer ISO; /dev/sr1 is our cidata ISO (cd_files).
@@ -79,18 +75,4 @@ source "harvester-iso" "ubuntu24_golden" {
 
 build {
   sources = ["source.harvester-iso.ubuntu24_golden"]
-
-  # Apply baseline packages and hardening-ready defaults for the golden image.
-  provisioner "shell" {
-    inline = [
-      "set -euxo pipefail",
-      "sudo apt-get update -y",
-      "sudo apt-get install -y qemu-guest-agent cloud-init",
-      "sudo systemctl enable qemu-guest-agent",
-      "sudo apt-get autoremove -y",
-      "sudo apt-get clean",
-      "sudo truncate -s 0 /etc/machine-id",
-      "sudo cloud-init clean --logs --seed || true",
-    ]
-  }
 }

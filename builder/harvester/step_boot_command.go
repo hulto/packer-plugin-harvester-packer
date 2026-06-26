@@ -92,7 +92,8 @@ func (s *StepBootCommand) Run(ctx context.Context, state multistep.StateBag) mul
 		},
 	}
 
-	conn, err := s.connectAndHandshakeVNCWithRetry(ctx, client, vmName, s.Config.WaitForInstanceTimeout)
+	ui.Say(fmt.Sprintf("Connecting to VNC console of VM %q...", vmName))
+	conn, err := s.connectAndHandshakeVNCWithRetry(ctx, ui, client, vmName, s.Config.WaitForInstanceTimeout)
 	if err != nil {
 		ui.Error(fmt.Sprintf("Failed to connect to VNC for VM %q: %s", vmName, err))
 		state.Put("error", err)
@@ -159,13 +160,14 @@ func (s *StepBootCommand) connectAndHandshakeVNC(client *hvclient.HarvesterClien
 	return conn, nil
 }
 
-func (s *StepBootCommand) connectAndHandshakeVNCWithRetry(ctx context.Context, client *hvclient.HarvesterClient, vmName string, timeout time.Duration) (*websocket.Conn, error) {
+func (s *StepBootCommand) connectAndHandshakeVNCWithRetry(ctx context.Context, ui packersdk.Ui, client *hvclient.HarvesterClient, vmName string, timeout time.Duration) (*websocket.Conn, error) {
 	if timeout <= 0 {
 		timeout = 2 * time.Minute
 	}
 
 	deadline := time.Now().Add(timeout)
 	var lastErr error
+	attempt := 0
 	for time.Now().Before(deadline) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -175,6 +177,8 @@ func (s *StepBootCommand) connectAndHandshakeVNCWithRetry(ctx context.Context, c
 			return conn, nil
 		}
 		lastErr = err
+		attempt++
+		ui.Say(fmt.Sprintf("VNC not ready (attempt %d): %s; retrying in 2s...", attempt, err))
 		time.Sleep(2 * time.Second)
 	}
 	if lastErr == nil {

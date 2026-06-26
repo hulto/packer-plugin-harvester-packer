@@ -59,7 +59,6 @@ func (s *StepCreateVM) Run(_ context.Context, state multistep.StateBag) multiste
 
 	ui.Say(fmt.Sprintf("VM %q created (UID %s)", created.ObjectMeta.Name, created.ObjectMeta.UID))
 	state.Put("vm_name", s.vmName)
-	ui.Say("VM created with runStrategy=Once; waiting for it to start...")
 
 	return multistep.ActionContinue
 }
@@ -163,6 +162,7 @@ func (s *StepCreateVM) buildVMSpec(state multistep.StateBag, client *hvclient.Ha
 		volClaimTemplates = append(volClaimTemplates, buildVolumeClaimTemplate(
 			cdromPVCName, isoDiskSize, cdromStorageClass, isoImageID, cfg.Namespace,
 		))
+		trackCleanupPVCName(state, cdromPVCName)
 		disks = append(disks, hvclient.DiskTarget{
 			Name:      "cdrom-0",
 			BootOrder: 2,
